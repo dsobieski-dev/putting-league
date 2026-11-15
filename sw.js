@@ -1,6 +1,6 @@
 // Offline support: every app file is cached on install and served from the cache, so the app opens with no internet.
 // Change VERSION on every release so devices pick up the new files the next time they are online.
-const VERSION = 'v1';
+const VERSION = 'v2'; // matches APP_VERSION 2.0.0 in index.html
 const CACHE = 'putting-league-' + VERSION;
 const FILES = [
   './',
@@ -13,6 +13,7 @@ const FILES = [
   './fonts/barlow-condensed-600.woff2',
   './fonts/barlow-condensed-700.woff2',
   './fonts/inter-var.woff2',
+  './vendor/xlsx.full.min.js', // spreadsheet reader for player import (about 1 MB)
 ];
 
 self.addEventListener('install', (e) => {
