@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Putting League Scorecard</title>
+<meta name="description" content="Score entry and handicaps for a putting league. Works offline.">
+<meta name="theme-color" content="#1f5b3a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+/* Fonts ship with the app so it looks the same with no internet. Licensed under the SIL OFL (see fonts/). */
+@font-face { font-family: "Barlow Condensed"; font-weight: 500; font-display: swap; src: url("fonts/barlow-condensed-500.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: swap; src: url("fonts/barlow-condensed-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: swap; src: url("fonts/barlow-condensed-700.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400 600; font-display: swap; src: url("fonts/inter-var.woff2") format("woff2"); }
+html { color-scheme: light; -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* Layout: a scorecard. Header band, tab row, then one card-like sheet per view; tables read like a printed card. */
+:root {
+  --bg: #f3f5f1;
+  --sheet: #ffffff;
+  --fg: #18231c;
+  --muted: #5d6b61;
+  --line: #d6ddd5;
+  --green: #1f5b3a;
+  --green-ink: #ffffff;
+  --flag: #e2b525;
+  --flag-soft: #fbf1cf;
+  --danger: #b3361f;
+  --focus: #2f7d52;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #101612; --sheet: #18201b; --fg: #e6ece6; --muted: #9aa89e; --line: #2c3830;
+  --green: #2f7d52; --green-ink: #ffffff; --flag: #e8c04a; --flag-soft: #3a3418; --danger: #ef7a62; --focus: #6cc496;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #101612; --sheet: #18201b; --fg: #e6ece6; --muted: #9aa89e; --line: #2c3830;
+  --green: #2f7d52; --green-ink: #ffffff; --flag: #e8c04a; --flag-soft: #3a3418; --danger: #ef7a62; --focus: #6cc496;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 920px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+header.band { background: var(--green); color: var(--green-ink); }
+header.band .wrap { padding-block: 20px 0; display: flex; flex-direction: column; gap: 14px; }
+.brand { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 2.1rem; line-height: 1; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+.parchip { font-family: var(--display); font-size: 1rem; letter-spacing: .08em; text-transform: uppercase; border: 1.5px solid color-mix(in srgb, var(--green-ink) 55%, transparent); border-radius: 4px; padding: 2px 10px; white-space: nowrap; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+nav.tabs button { font: 600 1.05rem var(--display); letter-spacing: .05em; text-transform: uppercase; background: transparent; color: color-mix(in srgb, var(--green-ink) 75%, transparent); border: 0; padding: 10px 14px; border-radius: 6px 6px 0 0; cursor: pointer; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { background: var(--bg); color: var(--fg); }
+nav.tabs button:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+main .wrap { padding-block: 22px 48px; display: flex; flex-direction: column; gap: 16px; }
+.sheet { background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 1.5rem; margin: 0; line-height: 1.1; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0; max-width: 65ch; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+input, select { font: inherit; font-size: 1rem; color: var(--fg); background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; }
+input[type="number"] { font-variant-numeric: tabular-nums; }
+button.btn { font: 600 .95rem var(--body); border-radius: 6px; padding: 9px 16px; border: 1px solid var(--green); background: var(--green); color: var(--green-ink); cursor: pointer; }
+button.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+button.btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+button.btn:disabled { opacity: .5; cursor: not-allowed; }
+button.link { background: none; border: 0; color: var(--muted); font: inherit; font-size: .9rem; text-decoration: underline; cursor: pointer; padding: 4px; }
+
+.tablebox { overflow-x: auto; margin: 0 -4px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 2px solid var(--fg); white-space: nowrap; }
+td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th.n, td.n { text-align: right; }
+td.big { font-family: var(--display); font-size: 1.35rem; font-weight: 600; }
+td input.score { width: 5.5em; text-align: right; font-variant-numeric: tabular-nums; }
+input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+td.bad { color: var(--danger); }
+tr.winner td { background: var(--flag-soft); }
+th.sort { cursor: pointer; user-select: none; }
+
+.pill { display: inline-block; font-size: .72rem; font-weight: 600; letter-spacing: .04em; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pill.flag { background: var(--flag); border-color: var(--flag); color: #1c1a0e; }
+.pill.est { border-style: dashed; }
+.empty { border: 1.5px dashed var(--line); border-radius: 8px; padding: 22px; color: var(--muted); text-align: center; }
+.note { font-size: .88rem; color: var(--muted); }
+.status { font-size: .9rem; min-height: 1.4em; }
+.status.err { color: var(--danger); }
+#globalStatus:empty { display: none; }
+.formula { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .92rem; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; white-space: pre; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--flag-soft); border-radius: 6px; padding: 10px 12px; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: .95rem; }
+.check input { margin-top: 4px; }
+.banner { display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; border-radius: 8px; padding: 12px 14px; border: 1px solid var(--line); background: var(--sheet); }
+.banner.warn { background: var(--flag-soft); border-color: var(--flag); }
+.banner span { flex: 1 1 240px; }
+.brand-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+button.btn.onband { background: var(--green-ink); color: var(--green); border-color: var(--green-ink); padding: 6px 12px; }
+.kv { display: flex; gap: 6px 10px; flex-wrap: wrap; font-size: .9rem; color: var(--muted); }
+.kv b { color: var(--fg); font-weight: 600; }
+@media (prefers-reduced-motion: no-preference) { button.btn { transition: filter .15s; } button.btn:hover:not(:disabled) { filter: brightness(1.08); } }
+</style>
+</head>
+<body>
+
+<header class="band">
+  <div class="wrap">
+    <div class="brand">
+      <h1>Putting League Scorecard</h1>
+      <div class="brand-actions">
+        <button class="btn onband" id="installBtn" hidden>Install app</button>
+        <span class="parchip" id="parChip">Par 36 · 18 holes</span>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" data-tab="enter">Enter scores</button>
+      <button role="tab" data-tab="standings">Handicaps</button>
+      <button role="tab" data-tab="results">Results</button>
+      <button role="tab" data-tab="players">Players</button>
+      <button role="tab" data-tab="rules">Rules &amp; backup</button>
+    </nav>
+  </div>
+</header>
+
+<main><div class="wrap">
+  <div class="banner" id="updateBanner" hidden><span>A new version of the app is ready.</span><button class="btn" id="updateBtn">Reload to update</button></div>
+  <div class="banner warn" id="backupBanner" hidden><span id="backupBannerText"></span><button class="btn" id="bannerBackupBtn">Download a backup</button></div>
+  <div class="status" id="globalStatus" aria-live="polite">Loading league data…</div>
+
+  <!-- ENTER -->
+  <section class="sheet" data-view="enter" hidden>
+    <h2>Enter scores</h2>
+    <p class="sub">Pick the meeting date and type each player's total strokes. Net score is gross minus the handicap they brought into this meeting. Leave a box blank if the player didn't play.</p>
+    <div class="row">
+      <label class="f" for="meetDate">Meeting date<input type="date" id="meetDate"></label>
+    </div>
+    <div id="enterBody"></div>
+    <div class="confirm" id="removeConfirm" role="alertdialog" aria-labelledby="removeConfirmText" hidden>
+      <span id="removeConfirmText"></span>
+      <button class="btn danger" id="removeYes">Remove and save</button>
+      <button class="btn ghost" id="removeNo">Keep their scores</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="saveScores">Save scores</button>
+      <span class="status" id="saveStatus" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <!-- STANDINGS -->
+  <section class="sheet" data-view="standings" hidden>
+    <h2>Handicaps for the next meeting</h2>
+    <p class="sub" id="standingsSub"></p>
+    <div id="standingsBody"></div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="sheet" data-view="results" hidden>
+    <h2>Meeting results</h2>
+    <p class="sub">Ranked by net score. Lowest net wins.</p>
+    <div class="row">
+      <label class="f" for="resultsMeeting">Meeting<select id="resultsMeeting"></select></label>
+    </div>
+    <div id="resultsBody"></div>
+    <div id="resultsActions"></div>
+  </section>
+
+  <!-- PLAYERS -->
+  <section class="sheet" data-view="players" hidden>
+    <h2>Players</h2>
+    <form class="row" id="addPlayerForm">
+      <label class="f" for="newPlayer" style="flex:1 1 220px">New player name<input id="newPlayer" maxlength="60" autocomplete="off" placeholder="e.g. Pat Morales"></label>
+      <button class="btn" type="submit">Add player</button>
+    </form>
+    <div id="playersBody"></div>
+  </section>
+
+  <!-- RULES -->
+  <section class="sheet" data-view="rules" hidden>
+    <h2>Handicap rules</h2>
+    <p class="sub">Changing these settings updates the handicaps for the next meeting. Results already saved keep the handicap that was used on the day.</p>
+    <div class="formula" id="formulaBox"></div>
+    <form id="rulesForm" class="grid2">
+      <label class="f" for="sPar">Par (target total)<input type="number" id="sPar" min="1" max="200" step="1"></label>
+      <label class="f" for="sPct">Allowance %<input type="number" id="sPct" min="0" max="100" step="1"></label>
+      <label class="f" for="sN">Rounds averaged (last N)<input type="number" id="sN" min="1" max="50" step="1"></label>
+      <label class="f" for="sMin">Rounds before a handicap<input type="number" id="sMin" min="1" max="50" step="1"></label>
+    </form>
+    <label class="check" for="sFloor"><input type="checkbox" id="sFloor"> <span>Never give a handicap below 0. If this is off, players who average under par get a negative handicap, which adds strokes to their score.</span></label>
+    <div class="row">
+      <button class="btn" id="saveRules">Save rules</button>
+      <span class="status" id="rulesStatus" aria-live="polite"></span>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);width:100%">
+    <h2 style="font-size:1.2rem">Backup</h2>
+    <p class="sub">All league data is stored only on this device. Download a backup after each meeting and keep a copy somewhere else, such as a USB stick, email or cloud folder. If this device is lost or replaced, install the app on the new one and restore the latest backup.</p>
+    <div class="kv"><span>Last backup: <b id="lastBackupText">never</b></span><span>Storage: <b id="storageText">checking…</b></span></div>
+    <div class="row">
+      <button class="btn" id="backupBtn">Download backup</button>
+      <button class="btn ghost" id="restoreBtn">Restore from backup…</button>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+    </div>
+    <div class="confirm" id="restoreConfirm" role="alertdialog" aria-labelledby="restoreConfirmText" hidden>
+      <span id="restoreConfirmText"></span>
+      <button class="btn danger" id="restoreYes">Replace with backup</button>
+      <button class="btn ghost" id="restoreNo">Cancel</button>
+    </div>
+    <span class="status" id="backupStatus" aria-live="polite"></span>
+    <p class="sub">Download every saved score as a spreadsheet file (CSV). This is for viewing in Excel or Sheets; it can't be restored. Use the backup file for that.</p>
+    <div class="row"><button class="btn ghost" id="exportCsv">Download scores (CSV)</button><span class="status" id="exportStatus"></span></div>
+  </section>
+</div></main>
+
+<script>
+(() => {
+  const DEFAULTS = { par: 36, allowancePct: 80, roundsN: 5, minRounds: 3, floorAtZero: true };
+  const S = { players: [], meetings: [], scores: [], settings: { ...DEFAULTS }, loaded: { players: false, meetings: false, scores: false, settings: false }, canWrite: true, sort: { key: 'hcp', dir: 1 } };
+  let db = null, downloads = null;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const todayISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  const fmtDate = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }); };
+  const fmt1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
+  // A score is digits only, 1..MAX_SCORE. Anything else (letters, symbols, decimals, "1e2") is rejected, never guessed at.
+  const MAX_SCORE = 300;
+  const parseScore = (v) => { const t = String(v).trim(); if (!/^\d{1,4}$/.test(t)) return null; const n = parseInt(t, 10); return n >= 1 && n <= MAX_SCORE ? n : null; };
+  const strictNum = (v) => { const t = String(v).trim(); return /^\d+(\.\d+)?$/.test(t) ? parseFloat(t) : NaN; };
+  const signed = (n) => n > 0 ? '−' + n : n < 0 ? '+' + Math.abs(n) : '0';
+
+  // ---- Handicap math (pure) ----
+  // rounds: [{date, gross}] for one player. beforeDate: only count meetings strictly earlier (null = all).
+  function handicap(rounds, settings, beforeDate) {
+    const n = Math.max(1, settings.roundsN | 0);
+    const pool = rounds.filter(r => !beforeDate || r.date < beforeDate).sort((a, b) => b.date.localeCompare(a.date));
+    const recent = pool.slice(0, n);
+    const played = pool.length;
+    if (recent.length < Math.max(1, settings.minRounds | 0) || recent.length === 0) {
+      return { hcp: 0, avg: recent.length ? recent.reduce((s, r) => s + r.gross, 0) / recent.length : null, played, counted: recent.length, establishing: true };
+    }
+    const avg = recent.reduce((s, r) => s + r.gross, 0) / recent.length;
+    const raw = (avg - settings.par) * settings.allowancePct / 100;
+    let hcp = Math.floor(raw + 1e-9); // always round down, never up (epsilon guards float noise like 2.9999999)
+    if (settings.floorAtZero) hcp = Math.max(0, hcp);
+    return { hcp, avg, raw, played, counted: recent.length, establishing: false };
+  }
+  window.__handicap = handicap; // exposed for testing
+
+  const roundsFor = (pid) => S.scores.filter(s => s.playerId === pid).map(s => ({ date: s.meetingId, gross: s.gross }));
+  const activePlayers = () => S.players.filter(p => p.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+  const playerName = (pid) => (S.players.find(p => p.id === pid) || {}).name || 'Removed player';
+
+  // ---- Tabs (hash routed) ----
+  const TABS = ['enter', 'standings', 'results', 'players', 'rules'];
+  function showTab(name) {
+    if (!TABS.includes(name)) name = 'enter';
+    document.querySelectorAll('[data-view]').forEach(el => el.hidden = el.dataset.view !== name);
+    document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  }
+  document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => { location.hash = b.dataset.tab; showTab(b.dataset.tab); }));
+  window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+  showTab(location.hash.slice(1));
+
+  // ---- Render ----
+  function renderAll() {
+    const st = S.settings;
+    $('parChip').textContent = `Par ${st.par} · last ${st.roundsN} rounds · ${st.allowancePct}%`;
+    renderEnter(); renderStandings(); renderResults(); renderPlayers(); renderRulesForm(false);
+  }
+
+  const drafts = {}; // meetingDate -> {pid: value} unsaved inputs
+  function renderEnter() {
+    const date = $('meetDate').value || todayISO();
+    const players = activePlayers();
+    const box = $('enterBody');
+    if (!players.length) {
+      box.innerHTML = `<div class="empty">No players yet. Add the league's players on the <a href="#players">Players</a> tab, then come back to enter scores.</div>`;
+      $('saveScores').disabled = true; return;
+    }
+    $('saveScores').disabled = !S.canWrite;
+    const draft = drafts[date] || {};
+    const rows = players.map(p => {
+      const saved = S.scores.find(s => s.playerId === p.id && s.meetingId === date);
+      const h = saved ? { hcp: saved.handicapApplied, establishing: !!saved.establishing } : handicap(roundsFor(p.id), S.settings, date);
+      const val = draft[p.id] !== undefined ? draft[p.id] : (saved ? saved.gross : '');
+      const g = parseScore(val);
+      const net = String(val).trim() === '' ? '–' : g === null ? '?' : g - h.hcp;
+      return `<tr>
+        <td>${esc(p.name)}${saved ? ' <span class="pill">saved</span>' : ''}</td>
+        <td class="n">${h.establishing ? '<span class="pill est" title="Not enough rounds yet">0 · new</span>' : signed(h.hcp)}</td>
+        <td class="n"><input type="text" inputmode="numeric" autocomplete="off" maxlength="4" class="score" id="g-${esc(p.id)}" ${val !== '' && parseScore(val) === null ? 'aria-invalid="true"' : ''} data-pid="${esc(p.id)}" aria-label="Gross score for ${esc(p.name)}" value="${esc(val)}" ${S.canWrite ? '' : 'disabled'}></td>
+        <td class="n big${net === '?' ? ' bad' : ''}" id="net-${esc(p.id)}">${net}</td>
+      </tr>`;
+    }).join('');
+    box.innerHTML = `<div class="tablebox"><table>
+      <thead><tr><th>Player</th><th class="n">Handicap</th><th class="n">Gross</th><th class="n">Net</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <p class="note">Handicap shown is the one each player brings into ${esc(fmtDate(date))}, from rounds played before that date. A minus sign means strokes taken off.</p>`;
+    box.querySelectorAll('input[data-pid]').forEach(inp => inp.addEventListener('input', () => {
+      const pid = inp.dataset.pid;
+      $('removeConfirm').hidden = true; // any edit invalidates a pending removal question
+      (drafts[date] = drafts[date] || {})[pid] = inp.value;
+      const saved = S.scores.find(s => s.playerId === pid && s.meetingId === date);
+      const h = saved ? saved.handicapApplied : handicap(roundsFor(pid), S.settings, date).hcp;
+      const g = parseScore(inp.value), blank = inp.value.trim() === '';
+      const cell = $('net-' + pid);
+      cell.textContent = blank ? '–' : g === null ? '?' : g - h;
+      cell.classList.toggle('bad', !blank && g === null);
+      if (!blank && g === null) inp.setAttribute('aria-invalid', 'true'); else inp.removeAttribute('aria-invalid');
+    }));
+  }
+  $('meetDate').value = todayISO();
+  $('meetDate').addEventListener('change', () => { $('saveStatus').textContent = ''; $('removeConfirm').hidden = true; renderEnter(); });
+
+  $('saveScores').addEventListener('click', () => saveScores(false));
+  $('removeYes').addEventListener('click', () => saveScores(true));
+  $('removeNo').addEventListener('click', () => {
+    // Put the saved scores back into the cleared boxes and save nothing.
+    const date = $('meetDate').value;
+    const d = drafts[date] || {};
+    $('enterBody').querySelectorAll('input[data-pid]').forEach(i => {
+      const saved = S.scores.find(s => s.id === `${date}_${i.dataset.pid}`);
+      if (saved && i.value.trim() === '') delete d[i.dataset.pid];
+    });
+    $('removeConfirm').hidden = true;
+    $('saveStatus').className = 'status'; $('saveStatus').textContent = 'Saved scores restored. Nothing has been saved yet.';
+    renderEnter();
+  });
+
+  async function saveScores(removalConfirmed) {
+    if (!db) return;
+    const date = $('meetDate').value;
+    const msg = $('saveStatus'); msg.className = 'status';
+    if (!date) { msg.textContent = 'Choose a meeting date first.'; msg.className = 'status err'; return; }
+    const inputs = [...$('enterBody').querySelectorAll('input[data-pid]')];
+    const bad = inputs.filter(i => i.value.trim() !== '' && parseScore(i.value) === null);
+    if (bad.length) {
+      const names = bad.map(i => playerName(i.dataset.pid)).join(', ');
+      msg.textContent = `Nothing saved. Fix the score for ${names}: use whole numbers only (1–${MAX_SCORE}), no letters, symbols or decimals.`;
+      msg.className = 'status err'; bad[0].focus(); return;
+    }
+    const removals = inputs.map(i => ({ i, saved: S.scores.find(s => s.id === `${date}_${i.dataset.pid}`) })).filter(r => r.i.value.trim() === '' && r.saved);
+    if (removals.length && !removalConfirmed) {
+      const list = removals.map(r => `${playerName(r.i.dataset.pid)} (${r.saved.gross})`).join(', ');
+      $('removeConfirmText').textContent = `${removals.length === 1 ? 'A saved score is' : `${removals.length} saved scores are`} blank: ${list}. Saving now will remove ${removals.length === 1 ? 'it' : 'them'} from ${fmtDate(date)} and recalculate handicaps.`;
+      $('removeConfirm').hidden = false; msg.textContent = '';
+      $('removeNo').focus(); return;
+    }
+    $('removeConfirm').hidden = true;
+    $('saveScores').disabled = true; msg.textContent = 'Saving…';
+    try {
+      let count = 0, removed = 0;
+      const existingMeeting = S.meetings.find(m => m.id === date);
+      for (const inp of inputs) {
+        const pid = inp.dataset.pid, v = inp.value.trim();
+        const docId = `${date}_${pid}`;
+        const saved = S.scores.find(s => s.id === docId);
+        if (v === '') { if (saved) { await db.collection('scores').doc(docId).delete(); removed++; } continue; }
+        const gross = parseScore(v);
+        // Keep the handicap snapshot from the first save; compute it fresh for new entries.
+        const h = saved ? { hcp: saved.handicapApplied, establishing: !!saved.establishing } : handicap(roundsFor(pid), S.settings, date);
+        if (saved && saved.gross === gross) { count++; continue; }
+        await db.collection('scores').doc(docId).set({ playerId: pid, meetingId: date, gross, handicapApplied: h.hcp, establishing: !!h.establishing, net: gross - h.hcp, savedAt: new Date().toISOString() });
+        count++;
+      }
+      if (count && !existingMeeting) await db.collection('meetings').doc(date).set({ date });
+      if (!count && existingMeeting) await db.collection('meetings').doc(date).delete();
+      delete drafts[date];
+      const parts = [];
+      if (count) parts.push(`Saved ${count} score${count === 1 ? '' : 's'}`);
+      if (removed) parts.push(`removed ${removed}`);
+      msg.textContent = parts.length ? `${parts.join(', ').replace(/^r/, 'R')} for ${fmtDate(date)}.` : 'No scores entered for this date.';
+    } catch (e) {
+      msg.className = 'status err';
+      msg.textContent = storageErrorText('scores');
+    } finally { $('saveScores').disabled = !S.canWrite; }
+  }
+
+  function renderStandings() {
+    const st = S.settings;
+    $('standingsSub').textContent = `Average of each player's last ${st.roundsN} rounds. Handicap = (average − par ${st.par}) × ${st.allowancePct}%, rounded down to a whole stroke. Players need ${st.minRounds} round${st.minRounds == 1 ? '' : 's'} before they get a handicap.`;
+    const players = activePlayers();
+    if (!players.length) { $('standingsBody').innerHTML = `<div class="empty">Handicaps appear here once players are added and scores are saved.</div>`; return; }
+    const rows = players.map(p => ({ p, h: handicap(roundsFor(p.id), st, null) }));
+    const { key, dir } = S.sort;
+    const val = (r) => key === 'name' ? r.p.name.toLowerCase() : key === 'played' ? r.h.played : key === 'avg' ? (r.h.avg ?? Infinity) : (r.h.establishing ? -Infinity : r.h.hcp);
+    rows.sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : a.p.name.localeCompare(b.p.name)) * dir; });
+    const th = (k, label, n) => `<th class="sort ${n ? 'n' : ''}" data-k="${k}" aria-sort="${key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${key === k ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+    $('standingsBody').innerHTML = `<div class="tablebox"><table>
+      <thead><tr>${th('name', 'Player')}${th('played', 'Rounds', 1)}${th('avg', `Avg (last ${st.roundsN})`, 1)}${th('hcp', 'Next handicap', 1)}</tr></thead>
+      <tbody>${rows.map(({ p, h }) => `<tr>
+        <td>${esc(p.name)}</td>
+        <td class="n">${h.played}</td>
+        <td class="n">${h.avg == null ? '–' : fmt1(h.avg)}</td>
+        <td class="n big">${h.establishing ? `<span class="pill est">needs ${st.minRounds - h.counted} more</span>` : signed(h.hcp)}</td>
+      </tr>`).join('')}</tbody></table></div>`;
+    $('standingsBody').querySelectorAll('th.sort').forEach(t => t.addEventListener('click', () => {
+      const k = t.dataset.k; S.sort = { key: k, dir: S.sort.key === k ? -S.sort.dir : (k === 'hcp' ? -1 : 1) }; renderStandings();
+    }));
+  }
+
+  let pendingDelete = null;
+  function renderResults() {
+    const sel = $('resultsMeeting');
+    const meetings = [...new Set(S.scores.map(s => s.meetingId))].sort().reverse();
+    const prev = sel.value;
+    sel.innerHTML = meetings.map(d => `<option value="${d}">${esc(fmtDate(d))}</option>`).join('');
+    if (meetings.includes(prev)) sel.value = prev;
+    const date = sel.value;
+    if (!meetings.length) { $('resultsBody').innerHTML = `<div class="empty">No meetings yet. Results show up here after the first scores are saved on the Enter scores tab.</div>`; $('resultsActions').innerHTML = ''; sel.disabled = true; return; }
+    sel.disabled = false;
+    const rows = S.scores.filter(s => s.meetingId === date).sort((a, b) => a.net - b.net || a.gross - b.gross);
+    const best = rows.length ? rows[0].net : null;
+    let rank = 0, last = null;
+    $('resultsBody').innerHTML = `<div class="tablebox"><table>
+      <thead><tr><th class="n">#</th><th>Player</th><th class="n">Gross</th><th class="n">Handicap</th><th class="n">Net</th></tr></thead>
+      <tbody>${rows.map((s, i) => { if (s.net !== last) { rank = i + 1; last = s.net; } const win = s.net === best; return `<tr class="${win ? 'winner' : ''}">
+        <td class="n">${rank}</td>
+        <td>${esc(playerName(s.playerId))} ${win ? '<span class="pill flag">Winner</span>' : ''}</td>
+        <td class="n">${s.gross}</td>
+        <td class="n">${signed(s.handicapApplied)}</td>
+        <td class="n big">${s.net}</td></tr>`; }).join('')}</tbody></table></div>`;
+    const acts = $('resultsActions');
+    if (!S.canWrite) { acts.innerHTML = ''; return; }
+    if (pendingDelete === date) {
+      acts.innerHTML = `<div class="confirm"><span>Delete all ${rows.length} scores for ${esc(fmtDate(date))}? Handicaps will be recalculated without them.</span><button class="btn danger" id="delYes">Delete meeting</button><button class="btn ghost" id="delNo">Keep it</button></div>`;
+      $('delNo').onclick = () => { pendingDelete = null; renderResults(); };
+      $('delYes').onclick = async () => {
+        try { for (const s of rows) await db.collection('scores').doc(s.id).delete(); await db.collection('meetings').doc(date).delete(); }
+        catch (e) { setGlobal('Couldn’t delete that meeting. Try again.', true); }
+        pendingDelete = null;
+      };
+    } else {
+      acts.innerHTML = `<div class="row"><button class="btn ghost" id="editMeet">Edit these scores</button><button class="link" id="delMeet">Delete this meeting</button></div>`;
+      $('editMeet').onclick = () => { $('meetDate').value = date; location.hash = 'enter'; showTab('enter'); renderEnter(); };
+      $('delMeet').onclick = () => { pendingDelete = date; renderResults(); };
+    }
+  }
+  $('resultsMeeting').addEventListener('change', () => { pendingDelete = null; renderResults(); });
+
+  let renaming = null;
+  function renderPlayers() {
+    const box = $('playersBody');
+    $('addPlayerForm').querySelectorAll('input,button').forEach(el => el.disabled = !S.canWrite);
+    const players = [...S.players].sort((a, b) => (a.active === false) - (b.active === false) || a.name.localeCompare(b.name));
+    if (!players.length) { box.innerHTML = `<div class="empty">Add each league member above. They'll appear on the score entry sheet right away.</div>`; return; }
+    box.innerHTML = `<div class="tablebox"><table><thead><tr><th>Name</th><th class="n">Rounds</th><th></th></tr></thead><tbody>${players.map(p => {
+      const played = S.scores.filter(s => s.playerId === p.id).length;
+      const nameCell = renaming === p.id
+        ? `<form class="row" data-rename="${esc(p.id)}"><input id="rn-${esc(p.id)}" value="${esc(p.name)}" maxlength="60" aria-label="New name"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" data-cancel>Cancel</button></form>`
+        : `${esc(p.name)} ${p.active === false ? '<span class="pill">inactive</span>' : ''}`;
+      return `<tr><td>${nameCell}</td><td class="n">${played}</td><td class="n" style="white-space:nowrap">${S.canWrite && renaming !== p.id ? `<button class="link" data-act="rename" data-id="${esc(p.id)}">Rename</button><button class="link" data-act="toggle" data-id="${esc(p.id)}">${p.active === false ? 'Reactivate' : 'Mark inactive'}</button>` : ''}</td></tr>`;
+    }).join('')}</tbody></table></div><p class="note">Inactive players are hidden from score entry and handicaps, but their past results are kept.</p>`;
+    box.querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', async () => {
+      const p = S.players.find(x => x.id === b.dataset.id); if (!p) return;
+      if (b.dataset.act === 'rename') { renaming = p.id; renderPlayers(); const i = $('rn-' + p.id); i && i.focus(); return; }
+      try { await db.collection('players').doc(p.id).update({ active: p.active === false }); } catch (e) { setGlobal('Couldn’t update that player. Try again.', true); }
+    }));
+    box.querySelectorAll('form[data-rename]').forEach(f => {
+      f.querySelector('[data-cancel]').onclick = () => { renaming = null; renderPlayers(); };
+      f.addEventListener('submit', async (e) => {
+        e.preventDefault(); const id = f.dataset.rename; const name = $('rn-' + id).value.trim();
+        if (!name) return;
+        try { await db.collection('players').doc(id).update({ name }); renaming = null; } catch (err) { setGlobal('Couldn’t rename that player. Try again.', true); }
+      });
+    });
+  }
+  $('addPlayerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('newPlayer').value.trim();
+    if (!name || !db) return;
+    if (S.players.some(p => p.name.toLowerCase() === name.toLowerCase())) { setGlobal(`${name} is already on the list.`, true); return; }
+    try { await db.collection('players').add({ name, active: true, createdAt: new Date().toISOString() }); $('newPlayer').value = ''; setGlobal(`Added ${name}.`); }
+    catch (err) { setGlobal(storageErrorText('the new player'), true); }
+  });
+
+  let rulesDirty = false;
+  function renderRulesForm(force) {
+    const st = S.settings;
+    if (force || !rulesDirty) { $('sPar').value = st.par; $('sPct').value = st.allowancePct; $('sN').value = st.roundsN; $('sMin').value = st.minRounds; $('sFloor').checked = !!st.floorAtZero; }
+    $('formulaBox').textContent = `average  = mean of the last ${st.roundsN} gross scores\nhandicap = round down( (average − ${st.par}) × ${st.allowancePct}% )${st.floorAtZero ? ', never below 0' : ''}\nnet      = gross − handicap\n\nExample: average 40.6 → (40.6 − ${st.par}) × ${st.allowancePct}% = ${fmt1((40.6 - st.par) * st.allowancePct / 100)} → handicap ${handicap([{date:'a',gross:40.6}], { ...st, roundsN: 1, minRounds: 1 }, null).hcp}`;
+    ['saveRules'].forEach(id => $(id).disabled = !S.canWrite);
+    ['sPar', 'sPct', 'sN', 'sMin', 'sFloor'].forEach(id => $(id).disabled = !S.canWrite);
+  }
+  ['sPar', 'sPct', 'sN', 'sMin', 'sFloor'].forEach(id => $(id).addEventListener('input', () => { rulesDirty = true; }));
+  $('rulesForm').addEventListener('submit', e => e.preventDefault());
+  $('saveRules').addEventListener('click', async () => {
+    const msg = $('rulesStatus'); msg.className = 'status';
+    const par = strictNum($('sPar').value), pct = strictNum($('sPct').value), n = strictNum($('sN').value), min = strictNum($('sMin').value);
+    if (!(par > 0) || !(pct >= 0 && pct <= 100) || !(Number.isInteger(n) && n >= 1) || !(Number.isInteger(min) && min >= 1)) { msg.className = 'status err'; msg.textContent = 'Nothing saved. Use numbers only: par above 0, allowance from 0 to 100, and whole-number round counts of at least 1.'; return; }
+    if (min > n) { msg.className = 'status err'; msg.textContent = `Rounds before a handicap (${min}) can't be more than rounds averaged (${n}).`; return; }
+    try {
+      await db.doc('config/settings').set({ par, allowancePct: pct, roundsN: n, minRounds: min, floorAtZero: $('sFloor').checked });
+      rulesDirty = false; msg.textContent = 'Rules saved. Handicaps updated.';
+    } catch (e) { msg.className = 'status err'; msg.textContent = storageErrorText('the rules'); }
+  });
+
+  $('exportCsv').addEventListener('click', async () => {
+    const msg = $('exportStatus'); msg.className = 'status';
+    const rows = [['Meeting date', 'Player', 'Gross', 'Handicap applied', 'Net']].concat(
+      [...S.scores].sort((a, b) => a.meetingId.localeCompare(b.meetingId) || a.net - b.net).map(s => [s.meetingId, playerName(s.playerId), s.gross, s.handicapApplied, s.net]));
+    const cell = (v) => /^[=+\-@]/.test(String(v)) ? "'" + v : v; // stop Excel reading a name as a formula
+    const csv = rows.map(r => r.map(cell).map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\n');
+    saveFile(`putting-league-scores-${todayISO()}.csv`, csv, 'text/csv');
+    msg.textContent = 'Spreadsheet downloaded.';
+  });
+
+  function setGlobal(text, err) { const g = $('globalStatus'); g.textContent = text; g.className = 'status' + (err ? ' err' : ''); }
+  function storageErrorText(what) {
+    return localDb.persistent === false
+      ? `Couldn’t save ${what}. This browser is blocking storage for the app, often because of private browsing mode. Open the installed app normally and try again.`
+      : `Couldn’t save ${what}. The device storage may be full. Free up some space and try again.`;
+  }
+  // Downloads a file the normal way (works in an installed app on Android and Windows).
+  function saveFile(filename, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  // ---- Local storage on this device ----
+  // Same small interface the page used with the online database, so the screens above are unchanged.
+  // Everything lives in one JSON value in localStorage; a season is a few KB.
+  const STORE_KEY = 'puttingLeague.v1', META_KEY = 'puttingLeague.meta';
+  const COLLECTIONS = ['players', 'meetings', 'scores', 'config'];
+  const emptyStore = () => ({ players: {}, meetings: {}, scores: {}, config: {} });
+  const readJSON = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } };
+  const localDb = (() => {
+    let store = emptyStore(), persistent = true;
+    const loaded = readJSON(STORE_KEY);
+    if (loaded && typeof loaded === 'object') COLLECTIONS.forEach(c => { if (loaded[c] && typeof loaded[c] === 'object') store[c] = loaded[c]; });
+    try { localStorage.setItem('puttingLeague.probe', '1'); localStorage.removeItem('puttingLeague.probe'); } catch (e) { persistent = false; }
+    const listeners = []; // {c, id?, next}
+    const snapOf = (c) => ({ docs: Object.entries(store[c] || {}).map(([id, d]) => ({ id, exists: true, data: () => d })), metadata: { fromCache: false, hasPendingWrites: false } });
+    const emit = (l) => l.id ? l.next({ id: l.id, exists: !!store[l.c][l.id], data: () => store[l.c][l.id], metadata: { fromCache: false, hasPendingWrites: false } }) : l.next(snapOf(l.c));
+    const notify = (c) => listeners.filter(l => !c || l.c === c).forEach(emit);
+    const commit = (c, mutate) => {
+      const prev = JSON.stringify(store[c]);
+      mutate(store[c]);
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+      catch (e) { store[c] = JSON.parse(prev); throw new Error('storage'); } // roll back so the screen matches what is saved
+      setMeta({ lastChangeAt: new Date().toISOString() });
+      notify(c);
+    };
+    const docRef = (c, id) => ({
+      id,
+      set: async (d) => commit(c, s => { s[id] = JSON.parse(JSON.stringify(d)); }),
+      update: async (d) => commit(c, s => { if (!s[id]) throw new Error('missing'); s[id] = { ...s[id], ...d }; }),
+      delete: async () => commit(c, s => { delete s[id]; }),
+      onSnapshot: (next) => { const l = { c, id, next }; listeners.push(l); setTimeout(() => emit(l)); return () => listeners.splice(listeners.indexOf(l), 1); },
+    });
+    const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    // Another window of the app changed the data: reload it here too.
+    window.addEventListener('storage', (e) => {
+      if (e.key !== STORE_KEY) return;
+      const fresh = readJSON(STORE_KEY) || emptyStore();
+      store = emptyStore(); COLLECTIONS.forEach(c => { if (fresh[c]) store[c] = fresh[c]; });
+      notify();
+    });
+    return {
+      get persistent() { return persistent; },
+      collection: (c) => ({ doc: (id) => docRef(c, id || newId()), add: async (d) => { const id = newId(); await docRef(c, id).set(d); return docRef(c, id); },
+        onSnapshot: (next) => { const l = { c, next }; listeners.push(l); setTimeout(() => emit(l)); return () => listeners.splice(listeners.indexOf(l), 1); } }),
+      doc: (path) => { const [c, id] = path.split('/'); return docRef(c, id); },
+      exportAll: () => JSON.parse(JSON.stringify(store)),
+      replaceAll: (data) => {
+        const next = emptyStore(); COLLECTIONS.forEach(c => { next[c] = JSON.parse(JSON.stringify(data[c] || {})); });
+        localStorage.setItem(STORE_KEY, JSON.stringify(next)); // throws if storage is full; nothing changes then
+        store = next; notify();
+      },
+    };
+  })();
+  db = localDb;
+
+  // ---- Backup, restore and the reminder ----
+  const BACKUP_FORMAT = 'putting-league-backup';
+  const getMeta = () => readJSON(META_KEY) || {};
+  function setMeta(patch) { try { localStorage.setItem(META_KEY, JSON.stringify({ ...getMeta(), ...patch })); } catch (e) {} }
+  const daysSince = (iso) => Math.floor((Date.now() - Date.parse(iso)) / 86400000);
+  const localDay = (iso) => { const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  const agoText = (iso) => { const d = daysSince(iso); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
+
+  function renderBackupInfo() {
+    const m = getMeta();
+    $('lastBackupText').textContent = m.lastBackupAt ? `${agoText(m.lastBackupAt)} (${fmtDate(localDay(m.lastBackupAt))})` : 'never';
+    const hasScores = S.scores.length > 0;
+    const changedSince = !m.lastBackupAt || (m.lastChangeAt && m.lastChangeAt > m.lastBackupAt);
+    const stale = !m.lastBackupAt || daysSince(m.lastBackupAt) > 7;
+    const show = hasScores && changedSince && stale;
+    $('backupBanner').hidden = !show;
+    if (show) $('backupBannerText').textContent = m.lastBackupAt
+      ? `Last backup: ${agoText(m.lastBackupAt)}. Scores have been saved since then, and they are only on this device.`
+      : 'No backup yet. Your scores are only on this device.';
+  }
+
+  function downloadBackup() {
+    const data = localDb.exportAll();
+    const now = new Date().toISOString();
+    const file = { format: BACKUP_FORMAT, version: 1, exportedAt: now, data };
+    saveFile(`putting-league-backup-${todayISO()}.json`, JSON.stringify(file, null, 2), 'application/json');
+    setMeta({ lastBackupAt: now });
+    const msg = $('backupStatus'); msg.className = 'status';
+    msg.textContent = `Backup downloaded with ${Object.keys(data.players).length} players and ${Object.keys(data.scores).length} scores. Copy the file off this device to keep it safe.`;
+    renderBackupInfo();
+  }
+  $('backupBtn').addEventListener('click', downloadBackup);
+  $('bannerBackupBtn').addEventListener('click', downloadBackup);
+
+  // Checks a backup file's structure before anything is replaced. Returns {data} or {error}.
+  function checkBackup(obj) {
+    const bad = (why) => ({ error: `This file can't be restored: ${why}. Choose a backup made with the Download backup button.` });
+    if (!obj || typeof obj !== 'object' || obj.format !== BACKUP_FORMAT || !obj.data || typeof obj.data !== 'object') return bad('it isn’t a putting league backup');
+    const d = obj.data;
+    for (const c of ['players', 'meetings', 'scores']) if (!d[c] || typeof d[c] !== 'object' || Array.isArray(d[c])) return bad(`the ${c} list is missing`);
+    for (const p of Object.values(d.players)) if (!p || typeof p.name !== 'string' || !p.name.trim()) return bad('a player has no name');
+    for (const s of Object.values(d.scores)) {
+      if (!s || typeof s.playerId !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s.meetingId || '')) return bad('a score is missing its player or date');
+      if (![s.gross, s.handicapApplied, s.net].every(Number.isFinite)) return bad('a score has a value that isn’t a number');
+    }
+    if (d.config && typeof d.config !== 'object') return bad('the rules are damaged');
+    return { data: { players: d.players, meetings: d.meetings, scores: d.scores, config: d.config || {} }, exportedAt: obj.exportedAt };
+  }
+  let pendingRestore = null;
+  $('restoreBtn').addEventListener('click', () => { $('restoreFile').value = ''; $('restoreFile').click(); });
+  $('restoreFile').addEventListener('change', async () => {
+    const f = $('restoreFile').files[0]; if (!f) return;
+    const msg = $('backupStatus'); msg.className = 'status'; msg.textContent = '';
+    let parsed;
+    try { parsed = JSON.parse(await f.text()); } catch (e) { parsed = null; }
+    $('restoreFile').value = ''; // so choosing the same file again still works
+    const r = checkBackup(parsed);
+    if (r.error) { pendingRestore = null; $('restoreConfirm').hidden = true; msg.className = 'status err'; msg.textContent = r.error; return; }
+    pendingRestore = r.data;
+    const np = Object.keys(r.data.players).length, ns = Object.keys(r.data.scores).length;
+    const when = r.exportedAt && !isNaN(Date.parse(r.exportedAt)) ? ` from ${fmtDate(localDay(r.exportedAt))}` : '';
+    $('restoreConfirmText').textContent = `“${f.name}” has ${np} player${np === 1 ? '' : 's'} and ${ns} score${ns === 1 ? '' : 's'}${when}. Restoring replaces everything on this device (currently ${S.players.length} players and ${S.scores.length} scores).`;
+    $('restoreConfirm').hidden = false; $('restoreNo').focus();
+  });
+  $('restoreNo').addEventListener('click', () => { pendingRestore = null; $('restoreConfirm').hidden = true; $('backupStatus').className = 'status'; $('backupStatus').textContent = 'Restore cancelled. Nothing was changed.'; });
+  $('restoreYes').addEventListener('click', () => {
+    const msg = $('backupStatus');
+    if (!pendingRestore) return;
+    try {
+      rulesDirty = false;
+      localDb.replaceAll(pendingRestore);
+      setMeta({ lastBackupAt: new Date().toISOString(), lastChangeAt: new Date().toISOString() });
+      msg.className = 'status'; msg.textContent = `Backup restored: ${Object.keys(pendingRestore.players).length} players and ${Object.keys(pendingRestore.scores).length} scores.`;
+    } catch (e) { msg.className = 'status err'; msg.textContent = 'Couldn’t restore. The device storage may be full. Nothing was changed.'; }
+    pendingRestore = null; $('restoreConfirm').hidden = true;
+  });
+
+  async function checkPersistence() {
+    const el = $('storageText');
+    if (!localDb.persistent) { el.textContent = 'blocked by this browser. Scores can’t be saved'; return; }
+    try {
+      if (navigator.storage && navigator.storage.persist) {
+        const ok = (await navigator.storage.persisted()) || (await navigator.storage.persist());
+        el.textContent = ok ? 'protected on this device' : 'saved, but the browser may clear it if space runs low. Installing the app helps';
+      } else el.textContent = 'saved on this device';
+    } catch (e) { el.textContent = 'saved on this device'; }
+  }
+
+  // ---- Offline app: service worker updates and the Install button ----
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading) { reloading = true; location.reload(); } });
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      const offer = (w) => { if (!w) return; $('updateBanner').hidden = false; $('updateBtn').onclick = () => w.postMessage('skipWaiting'); };
+      if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
+      });
+    }).catch(() => {});
+  }
+  let installEvent = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; $('installBtn').hidden = false; });
+  $('installBtn').addEventListener('click', async () => {
+    if (!installEvent) return;
+    installEvent.prompt();
+    try { await installEvent.userChoice; } catch (e) {}
+    installEvent = null; $('installBtn').hidden = true;
+  });
+  window.addEventListener('appinstalled', () => { $('installBtn').hidden = true; });
+
+  // ---- Data wiring ----
+  function start() {
+    renderAll();
+    const done = (k) => {
+      S.loaded[k] = true;
+      if (Object.values(S.loaded).every(Boolean)) setGlobal(localDb.persistent ? '' : 'This browser is blocking storage, so scores can’t be saved. Turn off private browsing, or open the installed app.', !localDb.persistent);
+      renderAll(); renderBackupInfo();
+    };
+    db.collection('players').onSnapshot(snap => { S.players = snap.docs.map(d => ({ id: d.id, ...d.data() })); done('players'); });
+    db.collection('meetings').onSnapshot(snap => { S.meetings = snap.docs.map(d => ({ id: d.id, ...d.data() })); done('meetings'); });
+    db.collection('scores').onSnapshot(snap => { S.scores = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => typeof s.gross === 'number'); done('scores'); });
+    db.doc('config/settings').onSnapshot(snap => { S.settings = { ...DEFAULTS, ...(snap.exists ? snap.data() : {}) }; done('settings'); });
+    checkPersistence();
+  }
+  start();
+})();
+</script>
+</body>
+</html>
