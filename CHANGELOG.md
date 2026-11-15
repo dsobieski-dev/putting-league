@@ -4,6 +4,20 @@ Newest release first. Each release has a short **Summary** of what changed, foll
 
 ---
 
+## 2.0.1 — 2026-11-15
+
+### Summary
+- Renamed the "GitHub backup" section on the Rules & backup tab to **Online backup**.
+
+### Details
+- **Screen text:** the section heading now reads **Online backup**. The status line reads "Online backup: …" and "Last online backup: …".
+- **Messages:** the offline message, the remove-token message and the *Erase everything* warning say "online backup" instead of "GitHub backup".
+- **Unchanged:** the buttons **Back up to GitHub now** and **Restore from GitHub…** still name GitHub, because that's where the backups are stored. How backups work is unchanged, and so are the settings already saved on a device.
+- **README:** the setup section is now "Set up online backup", and it still explains that backups are stored in a private GitHub repository.
+- **Version:** `APP_VERSION` 2.0.1, service worker `VERSION` `v2.0.1`.
+
+---
+
 ## 2.0.0 — 2026-11-15
 
 ### Summary

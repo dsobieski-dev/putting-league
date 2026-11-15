@@ -31,11 +31,11 @@ To check right away, use **Rules & backup → Check for updates**. If no bar app
 All players, scores and rules are stored only on the club's device.
 
 - **Backup file:** go to **Rules & backup → Download backup** after each meeting, and copy the file off the device (USB stick, email, cloud folder).
-- **GitHub backup** (recommended): copies happen automatically whenever the device is online. See below.
+- **Online backup** (recommended, stored on GitHub): copies happen automatically whenever the device is online. See below.
 - **Reminder:** the app shows one when scores have been saved and the last backup is more than 7 days old.
 - **New device:** to move to one, install the app there and use **Restore from backup** or **Restore from GitHub**.
 
-## Set up GitHub backup (one time, about 5 minutes)
+## Set up online backup (one time, about 5 minutes)
 
 Backups go to a **separate private repository**, never this public one. League names and scores must not be public.
 
@@ -46,7 +46,7 @@ Backups go to a **separate private repository**, never this public one. League n
    3. **Repository access:** **Only select repositories**, then `putting-league-backups`.
    4. **Permissions** → **Repository permissions** → **Contents:** **Read and write**. Leave everything else as is.
    5. Choose **Generate token** and copy it. It starts with `github_pat_`.
-3. **Connect the app.** On the club's device, while online, open **Rules & backup → GitHub backup**:
+3. **Connect the app.** On the club's device, while online, open **Rules & backup → Online backup**:
    1. Enter `dsobieski-dev/putting-league-backups` and paste the token.
    2. Choose **Save and test**. It should say "Connected. Backed up …".
    3. Keep "Back up automatically" ticked.

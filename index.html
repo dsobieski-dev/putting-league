@@ -230,7 +230,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     <div class="row"><button class="btn ghost" id="exportCsv">Download scores (CSV)</button><span class="status" id="exportStatus"></span></div>
 
     <hr class="rule">
-    <h2 style="font-size:1.2rem">GitHub backup</h2>
+    <h2 style="font-size:1.2rem">Online backup</h2>
     <p class="sub">Copies a backup to a <b>private</b> GitHub repository whenever this device is online, so the league's data is safe even if the device is lost. Use a separate private repo, never the public app repo. Setup steps are in the app's README on GitHub.</p>
     <div class="grid2">
       <label class="f" for="ghRepo">Backup repository (owner/name)<input id="ghRepo" autocomplete="off" spellcheck="false" placeholder="dsobieski-dev/putting-league-backups"></label>
@@ -243,7 +243,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
       <button class="btn ghost" id="ghRestoreBtn">Restore from GitHub…</button>
       <button class="link" id="ghForget">Remove token from this device</button>
     </div>
-    <div class="kv"><span>GitHub: <b id="ghStateText">not set up</b></span><span>Last GitHub backup: <b id="ghLastText">never</b></span></div>
+    <div class="kv"><span>Online backup: <b id="ghStateText">not set up</b></span><span>Last online backup: <b id="ghLastText">never</b></span></div>
     <span class="status" id="ghStatus" aria-live="polite"></span>
     <div id="ghList" hidden></div>
 
@@ -274,7 +274,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
 
 <script>
 (() => {
-  const APP_VERSION = '2.0.0'; // keep in step with VERSION in sw.js and CHANGELOG.md
+  const APP_VERSION = '2.0.1'; // keep in step with VERSION in sw.js and CHANGELOG.md
   const DEFAULTS = { par: 36, allowancePct: 80, roundsN: 5, minRounds: 3, floorAtZero: true };
   const S = { players: [], meetings: [], scores: [], settings: { ...DEFAULTS }, loaded: { players: false, meetings: false, scores: false, settings: false }, canWrite: true, sort: { key: 'hcp', dir: 1 } };
   let db = null, downloads = null;
@@ -879,7 +879,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
   const ghErrText = (e) => ({
     setup: 'Enter the backup repository and an access token, then choose Save and test.',
     badrepo: 'Enter the repository as owner/name, for example dsobieski-dev/putting-league-backups.',
-    offline: 'This device is offline. The GitHub backup will run the next time it’s online.',
+    offline: 'This device is offline. The online backup will run the next time it’s online.',
     auth: 'GitHub didn’t accept the token. It may be mistyped, expired or revoked. Create a new token and save it here.',
     notfound: 'GitHub can’t find that repository with this token. Check the name, and that the token was given access to it.',
     forbidden: 'The token isn’t allowed to do this. Give it “Contents: Read and write” access to the backup repository.',
@@ -945,7 +945,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
   });
   $('ghForget').addEventListener('click', () => {
     ghSet({ token: null, verified: false }); $('ghToken').value = '';
-    setGh('Token removed from this device. GitHub backups are off until a token is saved again.');
+    setGh('Token removed from this device. Online backups are off until a token is saved again.');
     renderGithub();
   });
   $('ghRestoreBtn').addEventListener('click', async () => {
@@ -992,7 +992,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     season: { word: 'NEW SEASON', button: 'Start new season',
       text: () => `Start a new season? This removes all ${S.scores.length} scores from ${new Set(S.scores.map(s => s.meetingId)).size} meetings. The ${S.players.length} players and the handicap rules stay. Everyone starts with no handicap again.` },
     erase: { word: 'ERASE', button: 'Erase everything',
-      text: () => `Erase everything? This removes all ${S.players.length} players, ${S.scores.length} scores and the handicap rules, leaving a blank app. GitHub backup settings on this device are kept.` },
+      text: () => `Erase everything? This removes all ${S.players.length} players, ${S.scores.length} scores and the handicap rules, leaving a blank app. Online backup settings on this device are kept.` },
   };
   function openClear(mode) {
     clearMode = mode; const m = CLEAR[mode];
