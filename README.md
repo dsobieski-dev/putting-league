@@ -31,11 +31,11 @@ To check right away, use **Rules & backup → Check for updates**. If no bar app
 All players, scores and rules are stored only on the club's device.
 
 - **Backup file:** go to **Rules & backup → Download backup** after each meeting, and copy the file off the device (USB stick, email, cloud folder).
-- **Online backup** (recommended, stored on GitHub): copies happen automatically whenever the device is online. See below.
+- **Cloud backup** (recommended): copies happen automatically whenever the device is online. See below.
 - **Reminder:** the app shows one when scores have been saved and the last backup is more than 7 days old.
-- **New device:** to move to one, install the app there and use **Restore from backup** or **Restore from GitHub**.
+- **New device:** to move to one, install the app there and use **Restore from backup** or **Restore from the cloud**.
 
-## Set up online backup (one time, about 5 minutes)
+## Set up cloud backup (one time, about 5 minutes)
 
 Backups go to a **separate private repository**, never this public one. League names and scores must not be public.
 
@@ -46,7 +46,7 @@ Backups go to a **separate private repository**, never this public one. League n
    3. **Repository access:** **Only select repositories**, then `putting-league-backups`.
    4. **Permissions** → **Repository permissions** → **Contents:** **Read and write**. Leave everything else as is.
    5. Choose **Generate token** and copy it. It starts with `github_pat_`.
-3. **Connect the app.** On the club's device, while online, open **Rules & backup → Online backup**:
+3. **Connect the app.** On the club's device, while online, open **Rules & backup → Cloud backup**:
    1. Enter `dsobieski-dev/putting-league-backups` and paste the token.
    2. Choose **Save and test**. It should say "Connected. Backed up …".
    3. Keep "Back up automatically" ticked.
@@ -54,6 +54,15 @@ Backups go to a **separate private repository**, never this public one. League n
 After that, the device backs up by itself whenever it's online and something has changed. If it says the token was rejected, it has probably expired: make a new one (step 2) and save it again.
 
 **If the device is lost or stolen,** revoke the token on GitHub (same page as step 2) so nobody can use it. The token is stored only on the device and is never included in backup files.
+
+## Delete a player
+
+**Players → Delete** removes someone who won't be coming back. It asks first.
+
+- Their past scores stay in meeting results, shown with their name and a **former** label.
+- They're removed from score entry, handicaps and the player list.
+- To undo, restore a backup made before the delete.
+- For someone who might come back, use **Mark inactive** instead.
 
 ## Import players from a spreadsheet
 
@@ -70,7 +79,7 @@ Two options sit under **Rules & backup → Start over**:
 - **Start a new season:** clears scores and meetings, and keeps players and rules.
 - **Erase everything:** clears players, scores and rules.
 
-Both download a backup first, and also send it to GitHub if that's set up and the device is online. Both need a typed confirmation word.
+Both download a backup first, and also send it to the cloud if cloud backup is set up and the device is online. Both need a typed confirmation word.
 
 ## Handicap formula (adjustable under Rules & backup)
 

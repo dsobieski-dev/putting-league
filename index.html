@@ -111,6 +111,8 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
 #clearWord { max-width: 16em; text-transform: uppercase; }
 .gh-list { display: flex; flex-direction: column; gap: 6px; }
 .gh-list button { text-align: left; }
+button.link.danger { color: var(--danger); }
+tr.delrow td { padding-top: 0; }
 @media (prefers-reduced-motion: no-preference) { button.btn { transition: filter .15s; } button.btn:hover:not(:disabled) { filter: brightness(1.08); } }
 </style>
 </head>
@@ -230,26 +232,26 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     <div class="row"><button class="btn ghost" id="exportCsv">Download scores (CSV)</button><span class="status" id="exportStatus"></span></div>
 
     <hr class="rule">
-    <h2 style="font-size:1.2rem">Online backup</h2>
-    <p class="sub">Copies a backup to a <b>private</b> GitHub repository whenever this device is online, so the league's data is safe even if the device is lost. Use a separate private repo, never the public app repo. Setup steps are in the app's README on GitHub.</p>
+    <h2 style="font-size:1.2rem">Cloud backup</h2>
+    <p class="sub">Copies a backup to the league's <b>private</b> cloud storage whenever this device is online, so the data is safe even if the device is lost. Setup steps are in the app's README.</p>
     <div class="grid2">
-      <label class="f" for="ghRepo">Backup repository (owner/name)<input id="ghRepo" autocomplete="off" spellcheck="false" placeholder="dsobieski-dev/putting-league-backups"></label>
-      <label class="f" for="ghToken">Access token<input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>
+      <label class="f" for="ghRepo">Cloud storage location (owner/name)<input id="ghRepo" autocomplete="off" spellcheck="false" placeholder="dsobieski-dev/putting-league-backups"></label>
+      <label class="f" for="ghToken">Access token<input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the access token"></label>
     </div>
     <label class="check" for="ghAuto"><input type="checkbox" id="ghAuto" checked> <span>Back up automatically when this device is online and scores have changed.</span></label>
     <div class="row">
       <button class="btn" id="ghSave">Save and test</button>
-      <button class="btn ghost" id="ghBackupNow">Back up to GitHub now</button>
-      <button class="btn ghost" id="ghRestoreBtn">Restore from GitHub…</button>
+      <button class="btn ghost" id="ghBackupNow">Back up to the cloud now</button>
+      <button class="btn ghost" id="ghRestoreBtn">Restore from the cloud…</button>
       <button class="link" id="ghForget">Remove token from this device</button>
     </div>
-    <div class="kv"><span>Online backup: <b id="ghStateText">not set up</b></span><span>Last online backup: <b id="ghLastText">never</b></span></div>
+    <div class="kv"><span>Cloud backup: <b id="ghStateText">not set up</b></span><span>Last cloud backup: <b id="ghLastText">never</b></span></div>
     <span class="status" id="ghStatus" aria-live="polite"></span>
     <div id="ghList" hidden></div>
 
     <hr class="rule">
     <h2 style="font-size:1.2rem">Start over</h2>
-    <p class="sub">A backup file downloads automatically first (and goes to GitHub too, if it's set up and the device is online), so you can undo with Restore.</p>
+    <p class="sub">A backup file downloads automatically first (and goes to the cloud too, if cloud backup is set up and the device is online), so you can undo with Restore.</p>
     <div class="row">
       <button class="btn ghost" id="newSeasonBtn">Start a new season…</button>
       <button class="btn danger" id="eraseBtn">Erase everything…</button>
@@ -274,7 +276,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
 
 <script>
 (() => {
-  const APP_VERSION = '2.0.1'; // keep in step with VERSION in sw.js and CHANGELOG.md
+  const APP_VERSION = '2.1.0'; // keep in step with VERSION in sw.js and CHANGELOG.md
   const DEFAULTS = { par: 36, allowancePct: 80, roundsN: 5, minRounds: 3, floorAtZero: true };
   const S = { players: [], meetings: [], scores: [], settings: { ...DEFAULTS }, loaded: { players: false, meetings: false, scores: false, settings: false }, canWrite: true, sort: { key: 'hcp', dir: 1 } };
   let db = null, downloads = null;
@@ -309,7 +311,10 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
 
   const roundsFor = (pid) => S.scores.filter(s => s.playerId === pid).map(s => ({ date: s.meetingId, gross: s.gross }));
   const activePlayers = () => S.players.filter(p => p.active !== false).sort((a, b) => a.name.localeCompare(b.name));
-  const playerName = (pid) => (S.players.find(p => p.id === pid) || {}).name || 'Removed player';
+  const playerName = (pid) => (S.players.find(p => p.id === pid) || {}).name || 'Former player';
+  // Name for a saved score: the player's current name, or the name stamped on the score when the player was deleted.
+  const isFormer = (s) => !S.players.some(p => p.id === s.playerId);
+  const scoreName = (s) => { const p = S.players.find(x => x.id === s.playerId); return p ? p.name : (s.playerName || 'Former player'); };
 
   // ---- Tabs (hash routed) ----
   const TABS = ['enter', 'standings', 'results', 'players', 'rules'];
@@ -318,7 +323,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     document.querySelectorAll('[data-view]').forEach(el => el.hidden = el.dataset.view !== name);
     document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
   }
-  document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => { location.hash = b.dataset.tab; showTab(b.dataset.tab); }));
+  document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => { if (deleting) { deleting = null; renderPlayers(); } location.hash = b.dataset.tab; showTab(b.dataset.tab); }));
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
   showTab(location.hash.slice(1));
 
@@ -424,8 +429,10 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
         await db.collection('scores').doc(docId).set({ playerId: pid, meetingId: date, gross, handicapApplied: h.hcp, establishing: !!h.establishing, net: gross - h.hcp, savedAt: new Date().toISOString() });
         count++;
       }
-      if (count && !existingMeeting) await db.collection('meetings').doc(date).set({ date });
-      if (!count && existingMeeting) await db.collection('meetings').doc(date).delete();
+      // S.scores is already up to date here; it also counts scores of deleted (former) players on this date.
+      const anyLeft = S.scores.some(s => s.meetingId === date);
+      if (anyLeft && !existingMeeting) await db.collection('meetings').doc(date).set({ date });
+      if (!anyLeft && existingMeeting) await db.collection('meetings').doc(date).delete();
       delete drafts[date];
       const parts = [];
       if (count) parts.push(`Saved ${count} score${count === 1 ? '' : 's'}`);
@@ -477,7 +484,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
       <thead><tr><th class="n">#</th><th>Player</th><th class="n">Gross</th><th class="n">Handicap</th><th class="n">Net</th></tr></thead>
       <tbody>${rows.map((s, i) => { if (s.net !== last) { rank = i + 1; last = s.net; } const win = s.net === best; return `<tr class="${win ? 'winner' : ''}">
         <td class="n">${rank}</td>
-        <td>${esc(playerName(s.playerId))} ${win ? '<span class="pill flag">Winner</span>' : ''}</td>
+        <td>${esc(scoreName(s))}${isFormer(s) ? ' <span class="pill" title="Deleted from the player list">former</span>' : ''} ${win ? '<span class="pill flag">Winner</span>' : ''}</td>
         <td class="n">${s.gross}</td>
         <td class="n">${signed(s.handicapApplied)}</td>
         <td class="n big">${s.net}</td></tr>`; }).join('')}</tbody></table></div>`;
@@ -499,7 +506,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
   }
   $('resultsMeeting').addEventListener('change', () => { pendingDelete = null; renderResults(); });
 
-  let renaming = null;
+  let renaming = null, deleting = null;
   function renderPlayers() {
     const box = $('playersBody');
     $('addPlayerForm').querySelectorAll('input,button').forEach(el => el.disabled = !S.canWrite);
@@ -518,11 +525,16 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
       const nameCell = renaming === p.id
         ? `<form class="row" data-rename="${esc(p.id)}"><input id="rn-${esc(p.id)}" value="${esc(p.name)}" maxlength="60" aria-label="New name"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" data-cancel>Cancel</button></form>`
         : `${esc(p.name)} ${p.active === false ? '<span class="pill">inactive</span>' : ''}`;
-      return `<tr><td>${nameCell}</td><td class="n">${played}</td><td class="n" style="white-space:nowrap">${S.canWrite && renaming !== p.id ? `<button class="link" data-act="rename" data-id="${esc(p.id)}">Rename</button><button class="link" data-act="toggle" data-id="${esc(p.id)}">${p.active === false ? 'Reactivate' : 'Mark inactive'}</button>` : ''}</td></tr>`;
+      return `<tr><td>${nameCell}</td><td class="n">${played}</td><td class="n" style="white-space:nowrap">${S.canWrite && renaming !== p.id ? `<button class="link" data-act="rename" data-id="${esc(p.id)}">Rename</button><button class="link" data-act="toggle" data-id="${esc(p.id)}">${p.active === false ? 'Reactivate' : 'Mark inactive'}</button><button class="link danger" data-act="delete" data-id="${esc(p.id)}">Delete</button>` : ''}</td></tr>`
+        + (deleting === p.id ? `<tr class="delrow"><td colspan="3"><div class="confirm" role="alertdialog" aria-labelledby="delText-${esc(p.id)}"><span id="delText-${esc(p.id)}">Delete ${esc(p.name)}? They'll be removed from the player list for good. ${played ? `Their ${played} past score${played === 1 ? '' : 's'} stay${played === 1 ? 's' : ''} in meeting results, marked as a former player.` : 'They have no saved scores.'} To undo, restore a backup.</span><button class="btn danger" data-act="delyes" data-id="${esc(p.id)}">Delete player</button><button class="btn ghost" id="delNo-${esc(p.id)}" data-act="delno" data-id="${esc(p.id)}">Cancel</button></div></td></tr>` : '');
     }).join('')}</tbody></table></div><p class="note">Inactive players are left off score entry and handicaps, but their past results are kept.${hiddenNote}</p>`;
     box.querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', async () => {
       const p = S.players.find(x => x.id === b.dataset.id); if (!p) return;
-      if (b.dataset.act === 'rename') { renaming = p.id; renderPlayers(); const i = $('rn-' + p.id); i && i.focus(); return; }
+      const act = b.dataset.act;
+      if (act === 'rename') { renaming = p.id; deleting = null; renderPlayers(); const i = $('rn-' + p.id); i && i.focus(); return; }
+      if (act === 'delete') { deleting = p.id; renaming = null; renderPlayers(); const c = $('delNo-' + p.id); c && c.focus(); return; }
+      if (act === 'delno') { deleting = null; renderPlayers(); return; }
+      if (act === 'delyes') { await deletePlayer(p); return; }
       try { await db.collection('players').doc(p.id).update({ active: p.active === false }); } catch (e) { setGlobal('Couldn’t update that player. Try again.', true); }
     }));
     box.querySelectorAll('form[data-rename]').forEach(f => {
@@ -534,11 +546,25 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
       });
     });
   }
+  // Deleting a player keeps their past scores: each score is stamped with the player's name first,
+  // so meeting results can still show who it was ("former"). Restoring a backup undoes a delete.
+  async function deletePlayer(p) {
+    const theirs = S.scores.filter(s => s.playerId === p.id);
+    try {
+      for (const sc of theirs) await db.collection('scores').doc(sc.id).update({ playerName: p.name });
+      await db.collection('players').doc(p.id).delete();
+      for (const d of Object.values(drafts)) delete d[p.id];
+      deleting = null;
+      setGlobal(`Deleted ${p.name}.` + (theirs.length ? ` Their ${theirs.length} past score${theirs.length === 1 ? '' : 's'} stay${theirs.length === 1 ? 's' : ''} in meeting results.` : ''));
+    } catch (e) { setGlobal(storageErrorText(`the change (${p.name} wasn’t deleted)`), true); }
+    renderPlayers();
+  }
+
   // Per-device display preferences (not league data, not in backups).
   const UI_KEY = 'puttingLeague.ui';
   function getUi() { try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { return {}; } }
   function setUi(patch) { try { localStorage.setItem(UI_KEY, JSON.stringify({ ...getUi(), ...patch })); } catch (e) {} }
-  $('showInactive').addEventListener('change', () => { setUi({ showInactive: $('showInactive').checked }); renaming = null; renderPlayers(); });
+  $('showInactive').addEventListener('change', () => { setUi({ showInactive: $('showInactive').checked }); renaming = null; deleting = null; renderPlayers(); });
 
   $('addPlayerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -694,7 +720,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
   $('exportCsv').addEventListener('click', async () => {
     const msg = $('exportStatus'); msg.className = 'status';
     const rows = [['Meeting date', 'Player', 'Gross', 'Handicap applied', 'Net']].concat(
-      [...S.scores].sort((a, b) => a.meetingId.localeCompare(b.meetingId) || a.net - b.net).map(s => [s.meetingId, playerName(s.playerId), s.gross, s.handicapApplied, s.net]));
+      [...S.scores].sort((a, b) => a.meetingId.localeCompare(b.meetingId) || a.net - b.net).map(s => [s.meetingId, scoreName(s), s.gross, s.handicapApplied, s.net]));
     const cell = (v) => /^[=+\-@]/.test(String(v)) ? "'" + v : v; // stop Excel reading a name as a formula
     const csv = rows.map(r => r.map(cell).map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\n');
     saveFile(`putting-league-scores-${todayISO()}.csv`, csv, 'text/csv');
@@ -877,15 +903,15 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     return opts.raw ? res.text() : res.json();
   }
   const ghErrText = (e) => ({
-    setup: 'Enter the backup repository and an access token, then choose Save and test.',
-    badrepo: 'Enter the repository as owner/name, for example dsobieski-dev/putting-league-backups.',
-    offline: 'This device is offline. The online backup will run the next time it’s online.',
-    auth: 'GitHub didn’t accept the token. It may be mistyped, expired or revoked. Create a new token and save it here.',
-    notfound: 'GitHub can’t find that repository with this token. Check the name, and that the token was given access to it.',
-    forbidden: 'The token isn’t allowed to do this. Give it “Contents: Read and write” access to the backup repository.',
-    public: 'That repository is public, so anyone could read the league’s names and scores. Use a private repository.',
-    http: `GitHub returned an error (${e && e.status}). Try again later.`,
-  }[e && e.code] || 'Something went wrong talking to GitHub. Try again later.');
+    setup: 'Enter the cloud storage location and an access token, then choose Save and test.',
+    badrepo: 'Enter the cloud storage location as owner/name, for example dsobieski-dev/putting-league-backups.',
+    offline: 'This device is offline. The cloud backup will run the next time it’s online.',
+    auth: 'The cloud didn’t accept the access token. It may be mistyped, expired or revoked. Create a new token and save it here.',
+    notfound: 'The cloud can’t find that storage location with this token. Check the name, and that the token was given access to it.',
+    forbidden: 'The token isn’t allowed to do this. Give it “Contents: Read and write” access to the cloud storage location.',
+    public: 'That cloud storage location is public, so anyone could read the league’s names and scores. Use a private one.',
+    http: `Cloud storage returned an error (${e && e.status}). Try again later.`,
+  }[e && e.code] || 'Something went wrong talking to cloud storage. Try again later.');
   // Base64 of UTF-8 text (btoa alone can't handle names with accents).
   function b64utf8(text) {
     const bytes = new TextEncoder().encode(text); let bin = '';
@@ -897,7 +923,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
   function renderGithub() {
     const c = ghGet();
     if (document.activeElement !== $('ghRepo') && !$('ghRepo').dataset.dirty) $('ghRepo').value = c.repo || '';
-    $('ghToken').placeholder = c.token ? 'Saved on this device (leave blank to keep)' : 'github_pat_…';
+    $('ghToken').placeholder = c.token ? 'Saved on this device (leave blank to keep)' : 'Paste the access token';
     $('ghAuto').checked = c.auto !== false;
     $('ghStateText').textContent = !c.repo || !c.token ? 'not set up' : c.verified ? `backing up to ${c.repo}` : `${c.repo} (not tested yet)`;
     $('ghLastText').textContent = c.lastGithubBackupAt ? `${agoText(c.lastGithubBackupAt)} (${fmtDate(localDay(c.lastGithubBackupAt))})` : 'never';
@@ -922,14 +948,14 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     const token = $('ghToken').value.trim() || c.token;
     if (!GH_REPO_RE.test(repo)) { setGh(ghErrText({ code: 'badrepo' }), true); return; }
     if (!token) { setGh(ghErrText({ code: 'setup' }), true); return; }
-    $('ghSave').disabled = true; setGh('Checking the repository…');
+    $('ghSave').disabled = true; setGh('Checking the cloud storage location…');
     const cfg = { repo, token };
     try {
       const info = await gh('', { cfg });
       if (info.private !== true) throw { code: 'public' };
       ghSet({ repo, token, auto: $('ghAuto').checked, verified: true, lastError: null });
       $('ghToken').value = ''; delete $('ghRepo').dataset.dirty; delete $('ghToken').dataset.dirty;
-      setGh('Repository found. Making a first backup to confirm the token can write…');
+      setGh('Storage location found. Making a first backup to confirm the token can write…');
       const r = await ghBackup();
       setGh(`Connected. Backed up ${r.np} players and ${r.ns} scores to ${repo}.`);
     } catch (e) {
@@ -938,23 +964,23 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     } finally { $('ghSave').disabled = false; renderGithub(); }
   });
   $('ghBackupNow').addEventListener('click', async () => {
-    $('ghBackupNow').disabled = true; setGh('Backing up to GitHub…');
-    try { const r = await ghBackup(); setGh(`Backed up ${r.np} players and ${r.ns} scores to GitHub.`); }
+    $('ghBackupNow').disabled = true; setGh('Backing up to the cloud…');
+    try { const r = await ghBackup(); setGh(`Backed up ${r.np} players and ${r.ns} scores to the cloud.`); }
     catch (e) { setGh(ghErrText(e), true); }
     finally { renderGithub(); }
   });
   $('ghForget').addEventListener('click', () => {
     ghSet({ token: null, verified: false }); $('ghToken').value = '';
-    setGh('Token removed from this device. Online backups are off until a token is saved again.');
+    setGh('Token removed from this device. Cloud backups are off until a token is saved again.');
     renderGithub();
   });
   $('ghRestoreBtn').addEventListener('click', async () => {
-    const list = $('ghList'); setGh('Looking for backups on GitHub…'); list.hidden = true;
+    const list = $('ghList'); setGh('Looking for backups in the cloud…'); list.hidden = true;
     let files;
     try { files = await gh('/contents/backups'); }
-    catch (e) { setGh(e && e.code === 'notfound' ? 'No backups found in that repository yet.' : ghErrText(e), true); return; }
+    catch (e) { setGh(e && e.code === 'notfound' ? 'No backups found in cloud storage yet.' : ghErrText(e), true); return; }
     const backups = (Array.isArray(files) ? files : []).filter(f => /^putting-league-backup-[\d-]+\.json$/.test(f.name)).sort((a, b) => b.name.localeCompare(a.name)).slice(0, 10);
-    if (!backups.length) { setGh('No backups found in that repository yet.', true); return; }
+    if (!backups.length) { setGh('No backups found in cloud storage yet.', true); return; }
     const when = (n) => { const m = n.match(/(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})/); return m ? `${fmtDate(`${m[1]}-${m[2]}-${m[3]}`)} at ${m[4]}:${m[5]}` : n; };
     list.innerHTML = `<div class="gh-list"><p class="note">Newest first. Choosing one shows what's in it before anything changes.</p>${backups.map((f, i) => `<button class="btn ghost" data-path="${esc(f.path)}" data-name="${esc(f.name)}">${i === 0 ? 'Latest: ' : ''}${esc(when(f.name))}</button>`).join('')}<button class="link" id="ghListClose">Close</button></div>`;
     list.hidden = false; setGh('');
@@ -965,7 +991,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
         const text = await gh('/contents/' + b.dataset.path.split('/').map(encodeURIComponent).join('/'), { raw: true });
         let parsed = null; try { parsed = JSON.parse(text); } catch (e) {}
         setGh('');
-        if (offerRestore(parsed, `${when(b.dataset.name)} (GitHub)`)) list.hidden = true;
+        if (offerRestore(parsed, `${when(b.dataset.name)} (cloud)`)) list.hidden = true;
       } catch (e) { setGh(ghErrText(e), true); }
     }));
   });
@@ -980,7 +1006,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     if (!m.lastChangeAt || (c.lastGithubBackupAt && m.lastChangeAt <= c.lastGithubBackupAt)) return;
     if (Date.now() - ghAutoFailedAt < 10 * 60 * 1000) return;
     ghAutoBusy = true;
-    try { await ghBackup(); setGh('Backed up to GitHub automatically.'); }
+    try { await ghBackup(); setGh('Backed up to the cloud automatically.'); }
     catch (e) { ghAutoFailedAt = Date.now(); ghSet({ lastError: e && e.code }); setGh(ghErrText(e), e && e.code !== 'offline'); }
     finally { ghAutoBusy = false; }
   }
@@ -992,7 +1018,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     season: { word: 'NEW SEASON', button: 'Start new season',
       text: () => `Start a new season? This removes all ${S.scores.length} scores from ${new Set(S.scores.map(s => s.meetingId)).size} meetings. The ${S.players.length} players and the handicap rules stay. Everyone starts with no handicap again.` },
     erase: { word: 'ERASE', button: 'Erase everything',
-      text: () => `Erase everything? This removes all ${S.players.length} players, ${S.scores.length} scores and the handicap rules, leaving a blank app. Online backup settings on this device are kept.` },
+      text: () => `Erase everything? This removes all ${S.players.length} players, ${S.scores.length} scores and the handicap rules, leaving a blank app. Cloud backup settings on this device are kept.` },
   };
   function openClear(mode) {
     clearMode = mode; const m = CLEAR[mode];
@@ -1012,7 +1038,7 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
     downloadBackup(); // always a local copy first
     let ghNote = '';
     if (ghReady() && navigator.onLine !== false) {
-      try { await ghBackup(); ghNote = ' and to GitHub'; } catch (e) { ghNote = ` (the GitHub copy failed: ${ghErrText(e)})`; }
+      try { await ghBackup(); ghNote = ' and to the cloud'; } catch (e) { ghNote = ` (the cloud copy failed: ${ghErrText(e)})`; }
     }
     const cur = localDb.exportAll();
     try {

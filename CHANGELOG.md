@@ -4,6 +4,38 @@ Newest release first. Each release has a short **Summary** of what changed, foll
 
 ---
 
+## 2.1.0 — 2026-11-17
+
+### Summary
+- **Delete a player:** a new **Delete** button on the Players tab removes someone who won't be coming back. Their past scores stay in meeting results, marked as a former player.
+- **Cloud backup:** the backup section and all of its messages now say "Cloud" instead of naming the storage service.
+
+### Details
+
+#### Delete a player (Players tab)
+- **Where:** each player row has **Delete** next to Rename and Mark inactive, for active and inactive players alike.
+- **Confirmation:** clicking it opens a confirmation under that row, naming the player and saying how many past scores they have. **Delete player** goes ahead; **Cancel** changes nothing. Starting a rename, switching tabs or toggling inactive players also cancels it.
+- **What happens:**
+  1. Each of the player's saved scores is stamped with their name (`playerName` on the score).
+  2. The player is removed from the player list.
+  3. Any unsaved score typed for them is discarded.
+- **After deleting:**
+  - **Results** still show their past scores, with their name and a **former** label. Rankings and winners of past meetings don't change.
+  - **CSV export** shows their name.
+  - **Gone from:** score entry, the Handicaps tab and the player list. Other players' handicaps don't change, because each handicap uses only that player's own scores.
+- **Undo:** restore a backup made before the delete. A cloud backup runs automatically after the change, as for any other change.
+- **Same name later:** importing or adding the same name later creates a new player with a fresh history.
+- **Fix:** saving a meeting date where only a former player still has scores no longer removes that meeting's record.
+
+#### Cloud wording
+- **Section and labels:** the section on the Rules & backup tab is now **Cloud backup**. The fields read **Cloud storage location (owner/name)** and **Access token**, and the token placeholder says "Paste the access token".
+- **Buttons:** **Back up to the cloud now** and **Restore from the cloud…**. The status line reads "Cloud backup: …" and "Last cloud backup: …".
+- **Messages:** every status, error and confirmation message says "the cloud" or "cloud storage", including the Start over notes and the restore label "(cloud)".
+- **Unchanged underneath:** backups are still stored in the league's private GitHub repository. Settings already saved on the device keep working, since the storage keys didn't change. The README names GitHub only in its setup steps.
+- **Version:** `APP_VERSION` 2.1.0, service worker `VERSION` `v2.1.0`.
+
+---
+
 ## 2.0.1 — 2026-11-15
 
 ### Summary

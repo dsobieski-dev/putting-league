@@ -9,6 +9,7 @@ An installable offline web app (PWA) for a golf putting league, served by GitHub
 4. **Never commit league data:** no backups, player names or scores. This repo is public. Off-device backups go to a separate *private* repo.
 5. **Commit author:** `dsobieski-dev <dsobieski-dev@users.noreply.github.com>`.
 6. **Workflow:** work on a branch, then ask before pushing to `main`, since `main` is the live site.
+7. **Wording:** text people see in the app says **"Cloud"** (cloud backup, the cloud, cloud storage), never "GitHub". GitHub is named only in the README's setup steps for the backup repo and token, and in the app's address. Code, ids and storage keys may keep `gh`/GitHub names.
 
 ## Layout
 - `index.html`: the whole app (HTML, CSS, JS). `localDb` is the storage adapter. Handicap math is `handicap()`.
