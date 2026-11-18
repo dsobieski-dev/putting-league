@@ -1,6 +1,6 @@
 // Offline support: every app file is cached on install and served from the cache, so the app opens with no internet.
 // Change VERSION on every release so devices pick up the new files the next time they are online.
-const VERSION = 'v2.1.0'; // matches APP_VERSION 2.1.0 in index.html
+const VERSION = 'v2.2.0'; // matches APP_VERSION 2.2.0 in index.html
 const CACHE = 'putting-league-' + VERSION;
 const FILES = [
   './',
@@ -9,6 +9,7 @@ const FILES = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/maskable-512.png',
+  './icons/apple-touch-icon-180.png',
   './fonts/barlow-condensed-500.woff2',
   './fonts/barlow-condensed-600.woff2',
   './fonts/barlow-condensed-700.woff2',

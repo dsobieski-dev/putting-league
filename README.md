@@ -16,7 +16,12 @@ Score entry and handicaps for a putting league. It installs as an app on a table
 2. Click **Install app** at the top of the page, or the install icon at the right end of the address bar.
 3. Open it from the Start menu or desktop shortcut. From now on it works offline.
 
-Use the installed app, not a browser tab. The browser is less likely to clear an installed app's data.
+**iPad (Safari, iPadOS 16.4 or later)**
+1. Open the app's web address in **Safari**.
+2. Tap the **Share** button (the square with an arrow, at the top), then **Add to Home Screen**, then **Add**. The app shows a reminder bar with these steps until you tap **Got it**. iPad has no Install button, because Apple doesn't let websites show one.
+3. Open it from the new Home Screen icon. From now on it works offline.
+
+Use the installed app, not a browser tab. The browser is less likely to clear an installed app's data. On iPad this matters even more: data in the Home Screen app is kept separately from Safari, so scores typed into a Safari tab won't appear in the app. Install first, then enter everything in the installed app.
 
 ## Getting updates
 
@@ -24,13 +29,13 @@ Use the installed app, not a browser tab. The browser is less likely to clear an
 2. When a new version has downloaded, a bar appears at the top: **"A new version of the app is ready."** Tap **Reload to update**.
 3. That's it. Players, scores and rules are kept. The new version number shows under **Rules & backup → App version**.
 
-To check right away, use **Rules & backup → Check for updates**. If no bar appears, close the app fully and open it again while online. What changed in each version is listed in [CHANGELOG.md](CHANGELOG.md).
+To check right away, use **Rules & backup → Check for updates**. If no bar appears, close the app fully and open it again while online. On iPad, swipe up from the bottom, hold, then swipe the app away. The app also checks again when it comes back on screen after an hour or more. What changed in each version is listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Where the data lives
 
 All players, scores and rules are stored only on the club's device.
 
-- **Backup file:** go to **Rules & backup → Download backup** after each meeting, and copy the file off the device (USB stick, email, cloud folder).
+- **Backup file:** go to **Rules & backup → Download backup** after each meeting, and copy the file off the device (USB stick, email, cloud folder). On iPad, the Share sheet opens instead: choose **Save to Files** (iCloud Drive keeps a copy off the iPad), AirDrop or Mail. **Download scores (CSV)** works the same way.
 - **Cloud backup** (recommended): copies happen automatically whenever the device is online. See below.
 - **Reminder:** the app shows one when scores have been saved and the last backup is more than 7 days old.
 - **New device:** to move to one, install the app there and use **Restore from backup** or **Restore from the cloud**.

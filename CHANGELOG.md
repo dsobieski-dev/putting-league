@@ -4,6 +4,47 @@ Newest release first. Each release has a short **Summary** of what changed, foll
 
 ---
 
+## 2.2.0 — 2026-11-18
+
+### Summary
+- **Install hint on iPad:** iPad and iPhone don't offer an Install button, so the app now explains how to add it to the Home Screen.
+- **Backups on iPad use the Share sheet:** **Download backup** and **Download scores (CSV)** open the Share sheet, so you can choose Save to Files, AirDrop or Mail.
+- **Update check on return:** the app also checks for updates when it comes back on screen after an hour or more. Installed apps often resume instead of restarting, especially on iPad.
+- **iPad Home Screen icon and name:** a proper Home Screen icon, with the app named "Putting League".
+
+### Details
+
+#### Install hint (iPad and iPhone)
+- **When it shows:** when the app is open in Safari but not installed. iPadOS reports itself as a Mac, so the app treats "Mac with a touch screen" as an iPad.
+- **What it says:** a bar at the top reads "To install on this iPad: tap the Share button, then Add to Home Screen…". It also warns that scores typed into the browser tab stay separate from the installed app.
+- **Dismissing:** **Got it** hides the bar for good on that device (stored in `puttingLeague.ui`).
+- **Where it never shows:** in the installed app, on Android, and on Windows.
+
+#### Saving files on iPad and iPhone
+- **How it works:** `saveFile()` now uses the Share sheet (Web Share with a file) on iPad and iPhone when Safari can share that file. Plain downloads are unreliable inside a Home Screen app there.
+  - On Android and Windows nothing changes: files download as before.
+  - If Safari can't share the file, it falls back to a normal download.
+- **If the Share sheet is closed without choosing anything:**
+  - **Download backup:** shows "Not saved…". The backup reminder stays, and the last-backup date isn't updated.
+  - **Download scores (CSV):** shows "Not saved".
+  - **Start a new season / Erase everything:** stops and clears nothing, because the safety backup wasn't saved.
+- **After saving a backup through the Share sheet:** the message suggests also copying it off the iPad, for example to iCloud Drive or by email.
+
+#### Update check when the app returns
+- **When:** each time the app becomes visible again (`visibilitychange`) while online, at most once an hour, it asks for the latest version (`registration.update()`). A new version shows the usual **Reload to update** bar.
+- **Why:** before, the check ran only when the app started, which iPad apps rarely do.
+
+#### iPad Home Screen
+- **Icon:** new `icons/apple-touch-icon-180.png`, 180×180, square with no transparent corners. iPad rounds the corners itself and would show black where an icon is transparent. It's added to the offline cache.
+- **Name and display:** `apple-mobile-web-app-capable`, `apple-mobile-web-app-title` ("Putting League") and status bar tags make the Home Screen app open full screen under a short name.
+
+#### Docs and version
+- **README:** iPad install steps, saving backups through the Share sheet, and how to force-close the app to get an update.
+- **Version:** `APP_VERSION` 2.2.0, service worker `VERSION` `v2.2.0`.
+- **Testing limit:** behavior was tested by simulating an iPad in Chromium: identity string, touch screen, and a stand-in Share sheet. It hasn't yet been checked on a real iPad.
+
+---
+
 ## 2.1.0 — 2026-11-17
 
 ### Summary

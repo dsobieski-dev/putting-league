@@ -8,7 +8,11 @@
 <meta name="theme-color" content="#1f5b3a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Putting League">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 /* Fonts ship with the app so it looks the same with no internet. Licensed under the SIL OFL (see fonts/). */
 @font-face { font-family: "Barlow Condensed"; font-weight: 500; font-display: swap; src: url("fonts/barlow-condensed-500.woff2") format("woff2"); }
@@ -138,6 +142,7 @@ tr.delrow td { padding-top: 0; }
 </header>
 
 <main><div class="wrap">
+  <div class="banner" id="iosHint" hidden><span id="iosHintText"></span><button class="btn ghost" id="iosHintClose">Got it</button></div>
   <div class="banner" id="updateBanner" hidden><span>A new version of the app is ready.</span><button class="btn" id="updateBtn">Reload to update</button></div>
   <div class="banner warn" id="backupBanner" hidden><span id="backupBannerText"></span><button class="btn" id="bannerBackupBtn">Download a backup</button></div>
   <div class="status" id="globalStatus" aria-live="polite">Loading league data…</div>
@@ -276,7 +281,7 @@ tr.delrow td { padding-top: 0; }
 
 <script>
 (() => {
-  const APP_VERSION = '2.1.0'; // keep in step with VERSION in sw.js and CHANGELOG.md
+  const APP_VERSION = '2.2.0'; // keep in step with VERSION in sw.js and CHANGELOG.md
   const DEFAULTS = { par: 36, allowancePct: 80, roundsN: 5, minRounds: 3, floorAtZero: true };
   const S = { players: [], meetings: [], scores: [], settings: { ...DEFAULTS }, loaded: { players: false, meetings: false, scores: false, settings: false }, canWrite: true, sort: { key: 'hcp', dir: 1 } };
   let db = null, downloads = null;
@@ -723,8 +728,8 @@ tr.delrow td { padding-top: 0; }
       [...S.scores].sort((a, b) => a.meetingId.localeCompare(b.meetingId) || a.net - b.net).map(s => [s.meetingId, scoreName(s), s.gross, s.handicapApplied, s.net]));
     const cell = (v) => /^[=+\-@]/.test(String(v)) ? "'" + v : v; // stop Excel reading a name as a formula
     const csv = rows.map(r => r.map(cell).map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\n');
-    saveFile(`putting-league-scores-${todayISO()}.csv`, csv, 'text/csv');
-    msg.textContent = 'Spreadsheet downloaded.';
+    const how = await saveFile(`putting-league-scores-${todayISO()}.csv`, csv, 'text/csv');
+    msg.textContent = how === 'cancelled' ? 'Not saved. The spreadsheet wasn’t saved anywhere.' : how === 'shared' ? 'Spreadsheet ready. It was sent where you chose.' : 'Spreadsheet downloaded.';
   });
 
   function setGlobal(text, err) { const g = $('globalStatus'); g.textContent = text; g.className = 'status' + (err ? ' err' : ''); }
@@ -733,12 +738,26 @@ tr.delrow td { padding-top: 0; }
       ? `Couldn’t save ${what}. This browser is blocking storage for the app, often because of private browsing mode. Open the installed app normally and try again.`
       : `Couldn’t save ${what}. The device storage may be full. Free up some space and try again.`;
   }
-  // Downloads a file the normal way (works in an installed app on Android and Windows).
-  function saveFile(filename, text, type) {
+  // iPad and iPhone. iPadOS reports itself as a Mac, so a Mac with a touch screen counts too.
+  const isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isInstalled = () => window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  // Saves a file the way the device handles best. On iPad/iPhone: the Share sheet (Save to Files, AirDrop, Mail),
+  // because plain downloads are unreliable in a Home Screen app there. Elsewhere: a normal download.
+  // Resolves to 'shared', 'downloaded' or 'cancelled'. Must be called straight from a tap (the Share sheet needs one).
+  async function saveFile(filename, text, type) {
+    if (isAppleMobile && navigator.share && navigator.canShare && typeof File === 'function') {
+      const file = new File([text], filename, { type });
+      let can = false; try { can = navigator.canShare({ files: [file] }); } catch (e) {}
+      if (can) {
+        try { await navigator.share({ files: [file], title: filename }); return 'shared'; }
+        catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; } // any other error: fall back to a download
+      }
+    }
     const url = URL.createObjectURL(new Blob([text], { type }));
     const a = document.createElement('a'); a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return 'downloaded';
   }
 
   // ---- Local storage on this device ----
@@ -818,14 +837,19 @@ tr.delrow td { padding-top: 0; }
   }
 
   const backupFile = (now) => ({ format: BACKUP_FORMAT, version: 1, appVersion: APP_VERSION, exportedAt: now, data: localDb.exportAll() });
-  function downloadBackup() {
+  // Resolves true when the backup file was saved or sent somewhere, false if the Share sheet was closed.
+  async function downloadBackup() {
     const now = new Date().toISOString();
     const file = backupFile(now), data = file.data;
-    saveFile(`putting-league-backup-${todayISO()}.json`, JSON.stringify(file, null, 2), 'application/json');
+    const how = await saveFile(`putting-league-backup-${todayISO()}.json`, JSON.stringify(file, null, 2), 'application/json');
+    const msg = $('backupStatus');
+    if (how === 'cancelled') { msg.className = 'status err'; msg.textContent = 'Not saved. Tap Download backup again and choose Save to Files (or AirDrop or Mail).'; renderBackupInfo(); return false; }
     setMeta({ lastBackupAt: now });
-    const msg = $('backupStatus'); msg.className = 'status';
-    msg.textContent = `Backup downloaded with ${Object.keys(data.players).length} players and ${Object.keys(data.scores).length} scores. Copy the file off this device to keep it safe.`;
+    msg.className = 'status';
+    const counts = `${Object.keys(data.players).length} players and ${Object.keys(data.scores).length} scores`;
+    msg.textContent = how === 'shared' ? `Backup saved with ${counts}. If you saved it to this iPad, also copy it somewhere else, such as iCloud Drive or email.` : `Backup downloaded with ${counts}. Copy the file off this device to keep it safe.`;
     renderBackupInfo();
+    return true;
   }
   $('backupBtn').addEventListener('click', downloadBackup);
   $('bannerBackupBtn').addEventListener('click', downloadBackup);
@@ -1035,7 +1059,11 @@ tr.delrow td { padding-top: 0; }
     if (!clearMode || $('clearWord').value.trim().toUpperCase() !== CLEAR[clearMode].word) return;
     const mode = clearMode, msg = $('clearStatus');
     $('clearYes').disabled = true;
-    downloadBackup(); // always a local copy first
+    // Always a local copy first. If it wasn't saved (Share sheet closed), clear nothing.
+    if (!(await downloadBackup())) {
+      msg.className = 'status err'; msg.textContent = 'Nothing was cleared, because the backup wasn’t saved. Try again and save the backup when asked.';
+      $('clearYes').disabled = false; return;
+    }
     let ghNote = '';
     if (ghReady() && navigator.onLine !== false) {
       try { await ghBackup(); ghNote = ' and to the cloud'; } catch (e) { ghNote = ` (the cloud copy failed: ${ghErrText(e)})`; }
@@ -1096,6 +1124,24 @@ tr.delrow td { padding-top: 0; }
       });
     }).catch(() => {});
   }
+  // Installed apps often resume instead of restarting (especially on iPad), so also check for an update
+  // when the app comes back on screen. At most once an hour, and only when online.
+  let lastUpdateCheck = Date.now();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !swReg || navigator.onLine === false) return;
+    if (Date.now() - lastUpdateCheck < 60 * 60 * 1000) return;
+    lastUpdateCheck = Date.now();
+    swReg.update().catch(() => {});
+  });
+
+  // iPad/iPhone have no Install button, so explain Add to Home Screen when the app is open in the browser.
+  if (isAppleMobile && !isInstalled() && !getUi().iosHintDismissed) {
+    const device = /iPhone|iPod/.test(navigator.userAgent) ? 'iPhone' : 'iPad';
+    $('iosHintText').textContent = `To install on this ${device}: tap the Share button, then Add to Home Screen. Open the app from the Home Screen icon and enter scores there. Scores entered in this browser tab stay separate from the installed app.`;
+    $('iosHint').hidden = false;
+  }
+  $('iosHintClose').addEventListener('click', () => { setUi({ iosHintDismissed: true }); $('iosHint').hidden = true; });
+
   let installEvent = null;
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvent = e; $('installBtn').hidden = false; });
   $('installBtn').addEventListener('click', async () => {
