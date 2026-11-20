@@ -4,7 +4,7 @@ Score entry and handicaps for a putting league. It installs as an app on a table
 
 **App address:** https://dsobieski-dev.github.io/putting-league/
 
-## Install on the club's device (needs internet once)
+## Install on a league device (needs internet once)
 
 **Android tablet (Chrome)**
 1. Open the app's web address in Chrome.
@@ -33,32 +33,64 @@ To check right away, use **Rules & backup → Check for updates**. If no bar app
 
 ## Where the data lives
 
-All players, scores and rules are stored only on the club's device.
+The league uses two devices: the **Primary league device**, which enters scores, and the **Secondary league device**, used by another officer to review data and as a spare if the Primary has a problem. Each device keeps the league data on itself, so it works with no internet. Cloud sync keeps the two the same.
 
-- **Backup file:** go to **Rules & backup → Download backup** after each meeting, and copy the file off the device (USB stick, email, cloud folder). On iPad, the Share sheet opens instead: choose **Save to Files** (iCloud Drive keeps a copy off the iPad), AirDrop or Mail. **Download scores (CSV)** works the same way.
-- **Cloud backup** (recommended): copies happen automatically whenever the device is online. See below.
-- **Reminder:** the app shows one when scores have been saved and the last backup is more than 7 days old.
-- **New device:** to move to one, install the app there and use **Restore from backup** or **Restore from the cloud**.
+- **Cloud sync** (recommended): whenever a device is online, it shares its changes and picks up the other device's. See the next two sections.
+- **Dated cloud backups:** while sync is on, the app also keeps a dated copy in the cloud at most twice a day. **Restore from the cloud** lists them.
+- **Backup file:** **Rules & backup → Download backup** saves a copy you control (USB stick, email, cloud folder). On iPad, the Share sheet opens instead: choose **Save to Files** (iCloud Drive keeps a copy off the iPad), AirDrop or Mail. **Download scores (CSV)** works the same way.
+- **Reminder:** the app shows one when scores have been saved, the last backup is more than 7 days old, and the device hasn't synced in the last week.
+- **Replacing a device:** install the app on the new one and connect it to the cloud (below). It downloads the league data.
 
-## Set up cloud backup (one time, about 5 minutes)
+## Set up cloud backup and sync (one time, about 5 minutes)
 
-Backups go to a **separate private repository**, never this public one. League names and scores must not be public.
+Everything goes to a **separate private repository**, never this public one. League names and scores must not be public.
 
 1. **Create the backup repository.** On GitHub, choose **New repository** and name it `putting-league-backups`. Choose **Private**, tick **Add a README file**, and choose **Create repository**.
-2. **Create an access token** that can only touch that repository:
+2. **Create an access token** that can only touch that repository. Make one token per league device, so either can be cut off alone if it's lost.
    1. Open GitHub → your profile picture → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
-   2. **Token name:** "Putting league device". **Expiration:** 1 year, and note the date.
+   2. **Token name:** "Primary league device" (or "Secondary league device"). **Expiration:** 1 year, and note the date.
    3. **Repository access:** **Only select repositories**, then `putting-league-backups`.
    4. **Permissions** → **Repository permissions** → **Contents:** **Read and write**. Leave everything else as is.
    5. Choose **Generate token** and copy it. It starts with `github_pat_`.
-3. **Connect the app.** On the club's device, while online, open **Rules & backup → Cloud backup**:
+3. **Connect the app.** On the league device, while online, open **Rules & backup → Cloud backup & sync**:
    1. Enter `dsobieski-dev/putting-league-backups` and paste the token.
-   2. Choose **Save and test**. It should say "Connected. Backed up …".
-   3. Keep "Back up automatically" ticked.
+   2. Choose **Save and test**. It should say "Connected to …", and then "Synced".
+   3. Check **This device is the** shows the right choice: **Primary league device** or **Secondary league device**.
 
-After that, the device backs up by itself whenever it's online and something has changed. If it says the token was rejected, it has probably expired: make a new one (step 2) and save it again.
+If it says the token was rejected, it has probably expired: make a new one (step 2) and save it again.
 
-**If the device is lost or stolen,** revoke the token on GitHub (same page as step 2) so nobody can use it. The token is stored only on the device and is never included in backup files.
+**If a device is lost or stolen,** revoke its token on GitHub (same page as step 2) so nobody can use it. Tokens are stored only on the device and are never included in backup files.
+
+## Primary and Secondary league devices
+
+**Setting up the Secondary league device** (the Primary is already connected):
+1. Install the app on it (see "Install on a league device").
+2. Make a second token named "Secondary league device" (step 2 above), then connect the app with it (step 3).
+3. Choose **Secondary league device**.
+4. If the Secondary already has some data, for example test players, the app asks how to combine it with the cloud data. Choose **Use the cloud data**. A backup file of the Secondary's old data downloads first.
+
+**Day to day:**
+- **Both devices can enter and change data.** Changes are shared whenever a device is online: when the app opens, when it comes back online, a few seconds after each change, every 2 minutes while it's open, or when you tap **Sync now**.
+- **The chip at the top** shows the state:
+  - **Synced 3 min ago:** up to date as of then.
+  - **Not synced: offline:** no internet right now.
+  - **Sync problem:** tap it for details.
+  - **Sync off: practice mode:** see below.
+- **Before a meeting:** open the app on the device you'll use while it's online, so it has the latest data. **After the meeting:** open it online again so the other device gets the new scores.
+- **Same record changed on both devices before they synced** (for example the same player's score for the same date): the most recent change wins on both devices. The device whose change was replaced shows a message saying which records. Keep both devices' date and time set automatically, because "most recent" relies on their clocks.
+- **Whole-league actions reach both devices:** **Start a new season**, **Erase everything**, **Restore from backup** and **Restore from the cloud** apply to the other device too when it next syncs. The app says so before you confirm.
+
+## Trying out rule changes (practice mode)
+
+To test handicap settings without touching live data:
+1. On either device, go to **Rules & backup → Cloud backup & sync** and set **Automatic sync** to **Off (practice mode)**. The chip turns amber and Enter scores shows a warning, so nobody enters real scores by mistake.
+2. Change rules, enter test scores, or even use **Start over**. Nothing leaves this device, and no cloud copies are made.
+3. Set **Automatic sync** back to **On**. The app asks what to do with the changes:
+   - **Replace this device's data with the live data** (usual choice): throws the test changes away and downloads the current live data.
+   - **Keep the changes made here and share them:** for real work done while sync was off. This also shares anything cleared with Start over.
+   - **Cancel:** sync stays off.
+
+You can also change the rules back by hand, but **Replace** is quicker and exact.
 
 ## Delete a player
 
@@ -84,7 +116,7 @@ Two options sit under **Rules & backup → Start over**:
 - **Start a new season:** clears scores and meetings, and keeps players and rules.
 - **Erase everything:** clears players, scores and rules.
 
-Both download a backup first, and also send it to the cloud if cloud backup is set up and the device is online. Both need a typed confirmation word.
+Both download a backup first, and also save a dated cloud copy if sync is on and the device is online. Both need a typed confirmation word. With sync on, they clear the other league device too when it next syncs. In practice mode, they only clear this device.
 
 ## Handicap formula (adjustable under Rules & backup)
 

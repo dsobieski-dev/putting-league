@@ -4,6 +4,63 @@ Newest release first. Each release has a short **Summary** of what changed, foll
 
 ---
 
+## 3.0.0 — 2026-11-20
+
+### Summary
+- **Two-device sync:** the Primary and Secondary league devices now share every change through the league's private cloud storage whenever they're online. Both can enter and change data.
+- **Practice mode:** automatic sync can be turned off on a device to try out handicap rule changes without touching live data. Turning sync back on offers to replace that device's data with the live data.
+- **Sync status at a glance:** a chip at the top shows Synced, Not synced: offline, Sync problem, or Sync off: practice mode.
+- **Fewer dated cloud copies:** at most twice a day instead of after every change. One is always made before Start over and before a restore.
+- **Whole-league actions reach both devices:** Start over and restores apply to both.
+
+### Details
+
+#### How sync works
+- **The shared file:** both devices read and write `sync/league.json` in the private cloud storage. It holds players, meetings, scores, rules and a record of deletions.
+- **Stamps:** every saved record carries `_u` (when it last changed) and `_by` (which device changed it). Deletions are kept in a `_deleted` list, so the other device removes the same record. Data from earlier versions has no stamps and counts as oldest, so anything changed later wins.
+- **Merge:** a sync downloads the shared file and merges it with this device's data, record by record, keeping the newest change. A deletion beats an edit made at the same moment.
+  - Both devices apply the same rule, so they end up identical whatever order they sync in.
+  - Each device's clock only moves forward past anything it has seen, which limits trouble from slightly wrong clocks.
+- **Upload with a check:** the merged result is uploaded together with the shared file's version id (`sha`). If the other device uploaded in between, the cloud rejects it (409/422). This device then downloads again, merges again and retries, up to 3 times, so nothing is ever overwritten blindly.
+- **When it syncs:** only when online, set up and switched on:
+  - when the app opens;
+  - when the device comes back online;
+  - about 4 seconds after any change;
+  - when the app comes back on screen;
+  - every 2 minutes while open;
+  - on **Sync now**.
+
+  After a failure, automatic retries wait 2 minutes, or until the device comes back online.
+- **Conflicts:** when both devices changed the same record before syncing, the newest change wins on both. The device whose change was replaced shows which records, e.g. "1 change from the Secondary device replaced a change made here: Alex's score on Tue, Nov 10, 2026."
+- **Damaged shared file:** if the shared file is ever damaged, both devices refuse it and change nothing. Restoring a backup on either device writes a good copy back.
+
+#### Setting up devices
+- **Save and test:** it no longer makes a dated backup. It proves the token can save by writing a small check-in file (`sync/devices/<device>.json`), then joins sync.
+- **Roles:** the first device to share becomes the **Primary league device**, and the next one the **Secondary league device**. Either can be changed under **This device is the**. The role only names the device in messages.
+- **Joining when both sides have data:** the app asks first:
+  - **Use the cloud data** downloads a backup file of this device's data first;
+  - **Combine both** merges them;
+  - **Cancel** leaves sync off.
+- **Devices connected under 2.x:** sync turns on automatically after updating, as the Primary, and the device uploads its data as the first shared copy.
+
+#### Practice mode (Automatic sync: Off)
+- **What's paused:** nothing is uploaded or downloaded, no dated cloud copies are made, and **Back up to the cloud now** is turned off.
+- **Warnings:** the chip turns amber ("Sync off: practice mode") and Enter scores shows a warning bar.
+- **Turning sync back on** asks:
+  - **Replace this device's data with the live data:** throws away everything done while sync was off and downloads the shared copy, without sharing anything.
+  - **Keep the changes made here and share them:** this includes anything cleared with Start over while sync was off.
+  - **Cancel.**
+- **Start over in practice mode:** the panel says it only clears this device for now.
+
+#### Other changes
+- **Restore:** restored records are stamped as new, so they win when the devices merge, and records not in the backup are recorded as deleted. The other device ends up identical. A dated cloud copy of the current data is saved first.
+- **Dated cloud copies:** made at most every 12 hours ("Also keep a dated backup copy in the cloud (at most twice a day)"), never in practice mode, and always before Start over and restores. File names now include milliseconds so two copies in the same second can't collide.
+- **Backup reminder:** hidden while the device has synced within the last week, since the cloud holds a current copy.
+- **Wording:** the section is now **Cloud backup & sync**. Messages name the devices only as Primary and Secondary. Start over's panel says "the 1 score / 1 meeting" correctly for single items.
+- **Version:** `APP_VERSION` 3.0.0, service worker `VERSION` `v3.0.0`.
+
+---
+
 ## 2.2.0 — 2026-11-18
 
 ### Summary

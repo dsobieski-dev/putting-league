@@ -11,6 +11,14 @@ An installable offline web app (PWA) for a golf putting league, served by GitHub
 6. **Workflow:** work on a branch, then ask before pushing to `main`, since `main` is the live site.
 7. **Wording:** text people see in the app says **"Cloud"** (cloud backup, the cloud, cloud storage), never "GitHub". GitHub is named only in the README's setup steps for the backup repo and token, and in the app's address. Code, ids and storage keys may keep `gh`/GitHub names.
 
+## Sync design (3.0.0+)
+- **Shared file:** `sync/league.json` in the private backup repo: `{format: 'putting-league-sync', version, updatedAt, updatedBy: 'Primary'|'Secondary', data: {players, meetings, scores, config}, deleted: {"collection/id": time}}`.
+- **Stamps:** every write must go through `localDb` (`set`/`update`/`delete`/`replaceAll`) so records get `_u` (an increasing ISO time) and `_by` (device id, `puttingLeague.device`), and deletions are recorded in `store._deleted`. `applySync()` is only for merged or downloaded data and never stamps.
+- **Merge:** `mergeLeague()` is newest-wins per record. Ties go to the deletion, then the higher `_by`, then canonical JSON. It must stay deterministic.
+- **Upload:** always send the `sha`. On 409/422, re-download, merge and retry (`syncNow`). Never overwrite the shared file without a sha, except a restore repairing a damaged file (`syncNow({ repair: true })`).
+- **Practice mode:** `ghGet().sync === false`. Nothing is uploaded or downloaded and no dated copies are made. `offChanges` triggers the Replace/Keep/Cancel choice when sync is turned back on.
+- **Wording:** devices are only ever "Primary league device" / "Secondary league device" in app text and docs.
+
 ## Layout
 - `index.html`: the whole app (HTML, CSS, JS). `localDb` is the storage adapter. Handicap math is `handicap()`.
 - `sw.js`: offline cache, cache-first. A new `VERSION` triggers the "Reload to update" bar.
@@ -20,7 +28,8 @@ An installable offline web app (PWA) for a golf putting league, served by GitHub
 ## Browser storage keys
 - `puttingLeague.v1`: league data
 - `puttingLeague.meta`: backup and change times
-- `puttingLeague.github`: GitHub backup settings and token. Device-only, never in backups.
+- `puttingLeague.github`: cloud settings and token, plus sync state (`role`, `sync`, `joined`, `lastSyncAt`, `offChanges`). Device-only, never in backups.
+- `puttingLeague.device`: this device's sync id.
 - `puttingLeague.ui`: display preferences
 
 ## Testing

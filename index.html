@@ -116,6 +116,15 @@ hr.rule { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px
 .gh-list { display: flex; flex-direction: column; gap: 6px; }
 .gh-list button { text-align: left; }
 button.link.danger { color: var(--danger); }
+.syncchip { font: 600 .82rem var(--body); border-radius: 999px; padding: 3px 10px; border: 1.5px solid color-mix(in srgb, var(--green-ink) 55%, transparent); background: transparent; color: var(--green-ink); cursor: pointer; white-space: nowrap; }
+.syncchip.ok::before { content: "● "; color: #8fe0ad; }
+.syncchip.off { opacity: .8; }
+.syncchip.warn { background: var(--flag); border-color: var(--flag); color: #1c1a0e; }
+.syncfields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+fieldset.radios { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+fieldset.radios legend { font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0 4px; }
+fieldset.radios label { display: flex; gap: 8px; align-items: flex-start; }
+fieldset.radios input { margin-top: 4px; }
 tr.delrow td { padding-top: 0; }
 @media (prefers-reduced-motion: no-preference) { button.btn { transition: filter .15s; } button.btn:hover:not(:disabled) { filter: brightness(1.08); } }
 </style>
@@ -128,6 +137,7 @@ tr.delrow td { padding-top: 0; }
       <h1>Putting League Scorecard</h1>
       <div class="brand-actions">
         <button class="btn onband" id="installBtn" hidden>Install app</button>
+        <button class="syncchip" id="syncChip" type="button" hidden></button>
         <span class="parchip" id="parChip">Par 36 · 18 holes</span>
       </div>
     </div>
@@ -150,6 +160,7 @@ tr.delrow td { padding-top: 0; }
   <!-- ENTER -->
   <section class="sheet" data-view="enter" hidden>
     <h2>Enter scores</h2>
+    <div class="banner warn" id="practiceBar" hidden><span>Sync is off (practice mode). Scores entered here won't reach the other league device.</span></div>
     <p class="sub">Pick the meeting date and type each player's total strokes. Net score is gross minus the handicap they brought into this meeting. Leave a box blank if the player didn't play.</p>
     <div class="row">
       <label class="f" for="meetDate">Meeting date<input type="date" id="meetDate"></label>
@@ -220,7 +231,7 @@ tr.delrow td { padding-top: 0; }
     </div>
     <hr class="rule">
     <h2 style="font-size:1.2rem">Backup</h2>
-    <p class="sub">All league data is stored only on this device. Download a backup after each meeting and keep a copy somewhere else, such as a USB stick, email or cloud folder. If this device is lost or replaced, install the app on the new one and restore the latest backup.</p>
+    <p class="sub">League data is stored on this device, and shared with the other league device when cloud sync is on. A backup file is an extra copy you control: keep one somewhere else, such as a USB stick, email or cloud folder. If a device is lost or replaced, install the app on the new one and connect it to the cloud, or restore the latest backup.</p>
     <div class="kv"><span>Last backup: <b id="lastBackupText">never</b></span><span>Storage: <b id="storageText">checking…</b></span></div>
     <div class="row">
       <button class="btn" id="backupBtn">Download backup</button>
@@ -237,20 +248,36 @@ tr.delrow td { padding-top: 0; }
     <div class="row"><button class="btn ghost" id="exportCsv">Download scores (CSV)</button><span class="status" id="exportStatus"></span></div>
 
     <hr class="rule">
-    <h2 style="font-size:1.2rem">Cloud backup</h2>
-    <p class="sub">Copies a backup to the league's <b>private</b> cloud storage whenever this device is online, so the data is safe even if the device is lost. Setup steps are in the app's README.</p>
+    <h2 style="font-size:1.2rem" id="syncHeading">Cloud backup &amp; sync</h2>
+    <p class="sub">Keeps the Primary and Secondary league devices in step through the league's <b>private</b> cloud storage, and keeps dated backups there. Devices sync whenever they're online. Setup steps are in the app's README.</p>
     <div class="grid2">
       <label class="f" for="ghRepo">Cloud storage location (owner/name)<input id="ghRepo" autocomplete="off" spellcheck="false" placeholder="dsobieski-dev/putting-league-backups"></label>
       <label class="f" for="ghToken">Access token<input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the access token"></label>
     </div>
-    <label class="check" for="ghAuto"><input type="checkbox" id="ghAuto" checked> <span>Back up automatically when this device is online and scores have changed.</span></label>
+    <div id="syncFields" class="syncfields" hidden>
+      <fieldset class="radios"><legend>This device is the</legend>
+        <label for="rolePrimary"><input type="radio" name="role" id="rolePrimary"> Primary league device</label>
+        <label for="roleSecondary"><input type="radio" name="role" id="roleSecondary"> Secondary league device</label>
+      </fieldset>
+      <fieldset class="radios"><legend>Automatic sync</legend>
+        <label for="syncOnRadio"><input type="radio" name="syncmode" id="syncOnRadio"> On: share changes with the other league device</label>
+        <label for="syncOffRadio"><input type="radio" name="syncmode" id="syncOffRadio"> Off (practice mode): changes stay on this device, e.g. to try out rule changes</label>
+      </fieldset>
+    </div>
+    <label class="check" for="ghAuto"><input type="checkbox" id="ghAuto" checked> <span>Also keep a dated backup copy in the cloud (at most twice a day).</span></label>
     <div class="row">
       <button class="btn" id="ghSave">Save and test</button>
+      <button class="btn" id="syncNowBtn" hidden>Sync now</button>
       <button class="btn ghost" id="ghBackupNow">Back up to the cloud now</button>
       <button class="btn ghost" id="ghRestoreBtn">Restore from the cloud…</button>
       <button class="link" id="ghForget">Remove token from this device</button>
     </div>
-    <div class="kv"><span>Cloud backup: <b id="ghStateText">not set up</b></span><span>Last cloud backup: <b id="ghLastText">never</b></span></div>
+    <div class="kv"><span>Cloud: <b id="ghStateText">not set up</b></span><span>Last synced: <b id="syncLastText">not yet</b></span><span>Last cloud backup: <b id="ghLastText">never</b></span></div>
+    <div class="confirm col" id="syncPanel" role="alertdialog" aria-labelledby="syncPanelText" hidden>
+      <span id="syncPanelText"></span>
+      <div class="row" id="syncPanelButtons"></div>
+    </div>
+    <span class="status" id="syncStatus" aria-live="polite"></span>
     <span class="status" id="ghStatus" aria-live="polite"></span>
     <div id="ghList" hidden></div>
 
@@ -281,7 +308,7 @@ tr.delrow td { padding-top: 0; }
 
 <script>
 (() => {
-  const APP_VERSION = '2.2.0'; // keep in step with VERSION in sw.js and CHANGELOG.md
+  const APP_VERSION = '3.0.0'; // keep in step with VERSION in sw.js and CHANGELOG.md
   const DEFAULTS = { par: 36, allowancePct: 80, roundsN: 5, minRounds: 3, floorAtZero: true };
   const S = { players: [], meetings: [], scores: [], settings: { ...DEFAULTS }, loaded: { players: false, meetings: false, scores: false, settings: false }, canWrite: true, sort: { key: 'hcp', dir: 1 } };
   let db = null, downloads = null;
@@ -767,48 +794,94 @@ tr.delrow td { padding-top: 0; }
   const COLLECTIONS = ['players', 'meetings', 'scores', 'config'];
   const emptyStore = () => ({ players: {}, meetings: {}, scores: {}, config: {} });
   const readJSON = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } };
+  // ---- Sync stamps ----
+  // Every record carries _u (when it last changed, an ISO time that only ever increases on this device) and
+  // _by (which device changed it). Deletions are kept in store._deleted["collection/id"] = time, so the other
+  // league device learns about them. The two devices merge by "newest change wins" (see mergeLeague).
+  const DEVICE_KEY = 'puttingLeague.device';
+  const deviceId = (() => {
+    let id = null; try { id = localStorage.getItem(DEVICE_KEY); } catch (e) {}
+    if (!id) { id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); try { localStorage.setItem(DEVICE_KEY, id); } catch (e) {} }
+    return id;
+  })();
+  let lastStamp = '';
+  function noteStamp(t) { if (t && t > lastStamp) lastStamp = t; }
+  function nextStamp() {
+    let t = new Date().toISOString();
+    if (t <= lastStamp) t = new Date(Date.parse(lastStamp) + 1).toISOString();
+    lastStamp = t; return t;
+  }
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+
   const localDb = (() => {
     let store = emptyStore(), persistent = true;
-    const loaded = readJSON(STORE_KEY);
-    if (loaded && typeof loaded === 'object') COLLECTIONS.forEach(c => { if (loaded[c] && typeof loaded[c] === 'object') store[c] = loaded[c]; });
+    store._deleted = {};
+    const loadFrom = (src) => {
+      const st = emptyStore(); st._deleted = {};
+      if (src && typeof src === 'object') {
+        COLLECTIONS.forEach(c => { if (src[c] && typeof src[c] === 'object') st[c] = src[c]; });
+        if (src._deleted && typeof src._deleted === 'object') st._deleted = src._deleted;
+      }
+      COLLECTIONS.forEach(c => Object.values(st[c]).forEach(d => noteStamp(d && d._u)));
+      Object.values(st._deleted).forEach(noteStamp);
+      return st;
+    };
+    store = loadFrom(readJSON(STORE_KEY));
     try { localStorage.setItem('puttingLeague.probe', '1'); localStorage.removeItem('puttingLeague.probe'); } catch (e) { persistent = false; }
     const listeners = []; // {c, id?, next}
     const snapOf = (c) => ({ docs: Object.entries(store[c] || {}).map(([id, d]) => ({ id, exists: true, data: () => d })), metadata: { fromCache: false, hasPendingWrites: false } });
     const emit = (l) => l.id ? l.next({ id: l.id, exists: !!store[l.c][l.id], data: () => store[l.c][l.id], metadata: { fromCache: false, hasPendingWrites: false } }) : l.next(snapOf(l.c));
     const notify = (c) => listeners.filter(l => !c || l.c === c).forEach(emit);
+    const save = (st) => localStorage.setItem(STORE_KEY, JSON.stringify(st)); // throws if storage is full
     const commit = (c, mutate) => {
-      const prev = JSON.stringify(store[c]);
-      mutate(store[c]);
-      try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
-      catch (e) { store[c] = JSON.parse(prev); throw new Error('storage'); } // roll back so the screen matches what is saved
+      const prev = JSON.stringify(store[c]), prevDel = JSON.stringify(store._deleted);
+      mutate(store[c], store._deleted);
+      try { save(store); }
+      catch (e) { store[c] = JSON.parse(prev); store._deleted = JSON.parse(prevDel); throw new Error('storage'); } // roll back so the screen matches what is saved
       setMeta({ lastChangeAt: new Date().toISOString() });
       notify(c);
-      scheduleGithubAuto();
+      afterLocalChange();
     };
     const docRef = (c, id) => ({
       id,
-      set: async (d) => commit(c, s => { s[id] = JSON.parse(JSON.stringify(d)); }),
-      update: async (d) => commit(c, s => { if (!s[id]) throw new Error('missing'); s[id] = { ...s[id], ...d }; }),
-      delete: async () => commit(c, s => { delete s[id]; }),
+      set: async (d) => commit(c, (s, del) => { s[id] = { ...clone(d), _u: nextStamp(), _by: deviceId }; delete del[c + '/' + id]; }),
+      update: async (d) => commit(c, (s, del) => { if (!s[id]) throw new Error('missing'); s[id] = { ...s[id], ...clone(d), _u: nextStamp(), _by: deviceId }; delete del[c + '/' + id]; }),
+      delete: async () => commit(c, (s, del) => { if (s[id]) { delete s[id]; del[c + '/' + id] = nextStamp(); } }),
       onSnapshot: (next) => { const l = { c, id, next }; listeners.push(l); setTimeout(() => emit(l)); return () => listeners.splice(listeners.indexOf(l), 1); },
     });
     const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     // Another window of the app changed the data: reload it here too.
     window.addEventListener('storage', (e) => {
       if (e.key !== STORE_KEY) return;
-      const fresh = readJSON(STORE_KEY) || emptyStore();
-      store = emptyStore(); COLLECTIONS.forEach(c => { if (fresh[c]) store[c] = fresh[c]; });
-      notify();
+      store = loadFrom(readJSON(STORE_KEY)); notify();
     });
     return {
       get persistent() { return persistent; },
       collection: (c) => ({ doc: (id) => docRef(c, id || newId()), add: async (d) => { const id = newId(); await docRef(c, id).set(d); return docRef(c, id); },
         onSnapshot: (next) => { const l = { c, next }; listeners.push(l); setTimeout(() => emit(l)); return () => listeners.splice(listeners.indexOf(l), 1); } }),
       doc: (path) => { const [c, id] = path.split('/'); return docRef(c, id); },
-      exportAll: () => JSON.parse(JSON.stringify(store)),
-      replaceAll: (data) => {
-        const next = emptyStore(); COLLECTIONS.forEach(c => { next[c] = JSON.parse(JSON.stringify(data[c] || {})); });
-        localStorage.setItem(STORE_KEY, JSON.stringify(next)); // throws if storage is full; nothing changes then
+      // League data only (for backup files): no deletion record.
+      exportAll: () => { const o = clone(store); delete o._deleted; return o; },
+      // League data plus the deletion record (for sync).
+      exportSync: () => { const o = clone(store); const deleted = o._deleted || {}; delete o._deleted; return { data: o, deleted }; },
+      // Whole-league replace (restore, Start over). Records that disappear are recorded as deleted so the other
+      // league device removes them too; restamp marks every incoming record as new so it wins when merging.
+      replaceAll: (data, opts = {}) => {
+        const next = emptyStore(); next._deleted = clone(store._deleted || {});
+        COLLECTIONS.forEach(c => {
+          next[c] = clone((data && data[c]) || {});
+          if (opts.restamp) for (const id of Object.keys(next[c])) next[c][id] = { ...next[c][id], _u: nextStamp(), _by: deviceId };
+          for (const id of Object.keys(next[c])) delete next._deleted[c + '/' + id];
+          for (const id of Object.keys(store[c] || {})) if (!next[c][id]) next._deleted[c + '/' + id] = nextStamp();
+        });
+        save(next);
+        store = next; notify();
+        afterLocalChange();
+      },
+      // Puts a merged or downloaded copy in place exactly as given (no new stamps). Used by sync.
+      applySync: (league) => {
+        const next = loadFrom({ ...clone(league.data || {}), _deleted: clone(league.deleted || {}) });
+        save(next);
         store = next; notify();
       },
     };
@@ -829,7 +902,9 @@ tr.delrow td { padding-top: 0; }
     const hasScores = S.scores.length > 0;
     const changedSince = !m.lastBackupAt || (m.lastChangeAt && m.lastChangeAt > m.lastBackupAt);
     const stale = !m.lastBackupAt || daysSince(m.lastBackupAt) > 7;
-    const show = hasScores && changedSince && stale;
+    const c = ghGet();
+    const syncedRecently = syncOn() && c.lastSyncWall && daysSince(c.lastSyncWall) <= 7; // the cloud holds a current copy
+    const show = hasScores && changedSince && stale && !syncedRecently;
     $('backupBanner').hidden = !show;
     if (show) $('backupBannerText').textContent = m.lastBackupAt
       ? `Last backup: ${agoText(m.lastBackupAt)}. Scores have been saved since then, and they are only on this device.`
@@ -847,7 +922,7 @@ tr.delrow td { padding-top: 0; }
     setMeta({ lastBackupAt: now });
     msg.className = 'status';
     const counts = `${Object.keys(data.players).length} players and ${Object.keys(data.scores).length} scores`;
-    msg.textContent = how === 'shared' ? `Backup saved with ${counts}. If you saved it to this iPad, also copy it somewhere else, such as iCloud Drive or email.` : `Backup downloaded with ${counts}. Copy the file off this device to keep it safe.`;
+    msg.textContent = how === 'shared' ? `Backup saved with ${counts}. If you saved it on this device, also copy it somewhere else, such as iCloud Drive or email.` : `Backup downloaded with ${counts}. Copy the file off this device to keep it safe.`;
     renderBackupInfo();
     return true;
   }
@@ -887,17 +962,22 @@ tr.delrow td { padding-top: 0; }
     pendingRestore = r.data;
     const np = Object.keys(r.data.players).length, ns = Object.keys(r.data.scores).length;
     const when = r.exportedAt && !isNaN(Date.parse(r.exportedAt)) ? ` from ${fmtDate(localDay(r.exportedAt))}` : '';
-    $('restoreConfirmText').textContent = `“${label}” has ${np} player${np === 1 ? '' : 's'} and ${ns} score${ns === 1 ? '' : 's'}${when}. Restoring replaces everything on this device (currently ${S.players.length} players and ${S.scores.length} scores).`;
+    $('restoreConfirmText').textContent = `“${label}” has ${np} player${np === 1 ? '' : 's'} and ${ns} score${ns === 1 ? '' : 's'}${when}. Restoring replaces everything on this device (currently ${S.players.length} players and ${S.scores.length} scores).${syncOn() ? ' The other league device gets the same data when it next syncs.' : ''}`;
     $('restoreConfirm').hidden = false; $('restoreNo').focus();
     return true;
   }
   $('restoreNo').addEventListener('click', () => { pendingRestore = null; $('restoreConfirm').hidden = true; $('backupStatus').className = 'status'; $('backupStatus').textContent = 'Restore cancelled. Nothing was changed.'; });
-  $('restoreYes').addEventListener('click', () => {
+  $('restoreYes').addEventListener('click', async () => {
     const msg = $('backupStatus');
     if (!pendingRestore) return;
+    const data = pendingRestore; pendingRestore = null; $('restoreConfirm').hidden = true;
+    // Keep a dated cloud copy of what is about to be replaced (best effort; not in practice mode).
+    if (syncOn() && navigator.onLine !== false) { msg.className = 'status'; msg.textContent = 'Saving a cloud copy of the current data first…'; try { await ghBackup(); } catch (e) {} }
+    pendingRestore = data;
     try {
       rulesDirty = false;
-      localDb.replaceAll(pendingRestore);
+      localDb.replaceAll(pendingRestore, { restamp: true }); // restored records count as new, so they win when the devices merge
+      if (syncOn()) setTimeout(() => syncNow({ repair: true }), 300); // shares the restore, and repairs a damaged shared file
       setMeta({ lastBackupAt: new Date().toISOString(), lastChangeAt: new Date().toISOString() });
       msg.className = 'status'; msg.textContent = `Backup restored: ${Object.keys(pendingRestore.players).length} players and ${Object.keys(pendingRestore.scores).length} scores.`;
     } catch (e) { msg.className = 'status err'; msg.textContent = 'Couldn’t restore. The device storage may be full. Nothing was changed.'; }
@@ -949,15 +1029,23 @@ tr.delrow td { padding-top: 0; }
     if (document.activeElement !== $('ghRepo') && !$('ghRepo').dataset.dirty) $('ghRepo').value = c.repo || '';
     $('ghToken').placeholder = c.token ? 'Saved on this device (leave blank to keep)' : 'Paste the access token';
     $('ghAuto').checked = c.auto !== false;
-    $('ghStateText').textContent = !c.repo || !c.token ? 'not set up' : c.verified ? `backing up to ${c.repo}` : `${c.repo} (not tested yet)`;
+    $('ghStateText').textContent = !c.repo || !c.token ? 'not set up' : c.verified ? `connected to ${c.repo}` : `${c.repo} (not tested yet)`;
     $('ghLastText').textContent = c.lastGithubBackupAt ? `${agoText(c.lastGithubBackupAt)} (${fmtDate(localDay(c.lastGithubBackupAt))})` : 'never';
-    $('ghBackupNow').disabled = $('ghRestoreBtn').disabled = !ghReady();
+    $('ghRestoreBtn').disabled = !ghReady();
     $('ghForget').hidden = !c.token;
+    renderSyncSettings(); renderSyncChip(); renderPracticeBar();
+  }
+  // Proves the token can save, without adding a dated backup: writes this device's own small check-in file.
+  async function writeCheck() {
+    const path = `/contents/sync/devices/${deviceId}.json`;
+    let sha; try { sha = (await gh(path)).sha; } catch (e) { if (!(e && e.code === 'notfound')) throw e; }
+    const body = { device: deviceId, role: myRole(), appVersion: APP_VERSION, checkedAt: new Date().toISOString() };
+    await gh(path, { method: 'PUT', body: JSON.stringify({ message: `Check-in from the ${myRole()} device`, content: b64utf8(JSON.stringify(body)), ...(sha ? { sha } : {}) }) });
   }
   async function ghBackup() {
     const d = new Date(), now = d.toISOString(), file = backupFile(now);
     const np = Object.keys(file.data.players).length, ns = Object.keys(file.data.scores).length;
-    const name = `putting-league-backup-${stamp(d)}.json`;
+    const name = `putting-league-backup-${stamp(d)}-${String(d.getMilliseconds()).padStart(3, '0')}.json`; // ms: two copies in one second must not collide
     await gh(`/contents/backups/${name}`, { method: 'PUT', body: JSON.stringify({ message: `Backup: ${np} players, ${ns} scores`, content: b64utf8(JSON.stringify(file, null, 2)) }) });
     ghSet({ lastGithubBackupAt: now, lastError: null });
     setMeta({ lastBackupAt: now });
@@ -977,11 +1065,14 @@ tr.delrow td { padding-top: 0; }
     try {
       const info = await gh('', { cfg });
       if (info.private !== true) throw { code: 'public' };
-      ghSet({ repo, token, auto: $('ghAuto').checked, verified: true, lastError: null });
+      const moved = c.repo && c.repo !== repo;
+      ghSet({ repo, token, auto: $('ghAuto').checked, verified: true, lastError: null, ...(moved ? { joined: false, lastSyncAt: null, lastSyncWall: null } : {}), ...(c.sync === undefined ? { sync: true } : {}) });
       $('ghToken').value = ''; delete $('ghRepo').dataset.dirty; delete $('ghToken').dataset.dirty;
-      setGh('Storage location found. Making a first backup to confirm the token can write…');
-      const r = await ghBackup();
-      setGh(`Connected. Backed up ${r.np} players and ${r.ns} scores to ${repo}.`);
+      setGh('Storage location found. Checking the token can save…');
+      await writeCheck();
+      setGh(`Connected to ${repo}.`);
+      renderGithub();
+      if (ghGet().sync !== false) await joinCheck();
     } catch (e) {
       if (e && (e.code === 'public' || e.code === 'auth' || e.code === 'notfound')) ghSet({ verified: false });
       setGh(ghErrText(e), true);
@@ -1020,30 +1111,283 @@ tr.delrow td { padding-top: 0; }
     }));
   });
   // Automatic backup: after changes, when the device comes online, and when the app opens.
-  // Only uploads when data changed since the last GitHub backup; after a failure, waits 10 minutes.
+  // Only uploads when data changed since the last copy, at most every 12 hours, never in practice mode;
+  // after a failure, waits 10 minutes.
   let ghAutoTimer = null, ghAutoBusy = false, ghAutoFailedAt = 0;
   function scheduleGithubAuto(delay = 4000) { clearTimeout(ghAutoTimer); ghAutoTimer = setTimeout(autoGithubBackup, delay); }
   async function autoGithubBackup() {
     const c = ghGet();
-    if (!ghReady() || c.auto === false || ghAutoBusy || navigator.onLine === false) return;
+    if (!ghReady() || c.auto === false || c.sync === false || ghAutoBusy || navigator.onLine === false) return;
     const m = getMeta();
     if (!m.lastChangeAt || (c.lastGithubBackupAt && m.lastChangeAt <= c.lastGithubBackupAt)) return;
+    if (c.lastGithubBackupAt && Date.now() - Date.parse(c.lastGithubBackupAt) < 12 * 60 * 60 * 1000) return; // at most twice a day
     if (Date.now() - ghAutoFailedAt < 10 * 60 * 1000) return;
     ghAutoBusy = true;
     try { await ghBackup(); setGh('Backed up to the cloud automatically.'); }
     catch (e) { ghAutoFailedAt = Date.now(); ghSet({ lastError: e && e.code }); setGh(ghErrText(e), e && e.code !== 'offline'); }
     finally { ghAutoBusy = false; }
   }
-  window.addEventListener('online', () => { ghAutoFailedAt = 0; scheduleGithubAuto(1500); });
+  window.addEventListener('online', () => { ghAutoFailedAt = 0; syncFailedAt = 0; scheduleGithubAuto(1500); scheduleSync(1500); });
+
+  // ---- Sync between the Primary and Secondary league devices ----
+  // Both devices read and write one shared file, sync/league.json, in the same private cloud storage as the
+  // backups. Each upload sends the file's sha; if the other device uploaded in between, the cloud rejects it
+  // (409/422) and this device downloads again, merges again and retries. Nothing is overwritten blindly.
+  const SYNC_PATH = '/contents/sync/league.json';
+  const SYNC_FORMAT = 'putting-league-sync';
+  const syncOn = () => ghReady() && ghGet().sync !== false;
+  const roleName = (r) => (r === 'secondary' ? 'Secondary' : 'Primary');
+  const myRole = () => roleName(ghGet().role);
+  const otherRole = () => (ghGet().role === 'secondary' ? 'Primary' : 'Secondary');
+  // Keys sorted, so two equal leagues always produce the same text.
+  const canon = (x) => Array.isArray(x) ? '[' + x.map(canon).join(',') + ']' : x && typeof x === 'object'
+    ? '{' + Object.keys(x).sort().map(k => JSON.stringify(k) + ':' + canon(x[k])).join(',') + '}' : JSON.stringify(x);
+  const sameLeague = (a, b) => canon({ d: a.data, x: a.deleted }) === canon({ d: b.data, x: b.deleted });
+  const hasLeagueData = (lg) => Object.keys(lg.data.players || {}).length + Object.keys(lg.data.scores || {}).length > 0;
+
+  // Newest change wins, record by record. Order: time, then deletion over edit, then device id, then content,
+  // so both devices always pick the same winner whatever order they merge in.
+  function mergeLeague(L, R) {
+    const out = { data: emptyStore(), deleted: {} };
+    const ev = (kind, val, t, by) => ({ kind, val, t: t || '', by: by || '' });
+    const beats = (a, b) => a.t !== b.t ? a.t > b.t : a.kind !== b.kind ? a.kind === 'del' : a.by !== b.by ? a.by > b.by : canon(a.val) > canon(b.val);
+    for (const c of COLLECTIONS) {
+      const ids = new Set([...Object.keys(L.data[c] || {}), ...Object.keys(R.data[c] || {})]);
+      for (const k of [...Object.keys(L.deleted || {}), ...Object.keys(R.deleted || {})]) if (k.startsWith(c + '/')) ids.add(k.slice(c.length + 1));
+      for (const id of ids) {
+        const k = c + '/' + id, cands = [];
+        for (const side of [L, R]) {
+          const d = (side.data[c] || {})[id];
+          if (d) cands.push(ev('doc', d, d._u, d._by));
+          if (side.deleted && side.deleted[k]) cands.push(ev('del', null, side.deleted[k], ''));
+        }
+        let best = cands[0];
+        for (const x of cands.slice(1)) if (beats(x, best)) best = x;
+        if (best.kind === 'doc') out.data[c][id] = clone(best.val); else out.deleted[k] = best.t;
+      }
+    }
+    return out;
+  }
+  // Changes made on this device since its last sync that the other device's newer change replaced.
+  function findConflicts(L, M, since) {
+    const out = [];
+    for (const c of COLLECTIONS) {
+      for (const [id, d] of Object.entries(L.data[c] || {})) {
+        if (!(d._by === deviceId && d._u > (since || ''))) continue;
+        const m = M.data[c][id];
+        if (!m || canon(m) !== canon(d)) out.push(describeRecord(c, id, d));
+      }
+      for (const [k, t] of Object.entries(L.deleted || {})) {
+        if (!k.startsWith(c + '/') || t <= (since || '')) continue;
+        const id = k.slice(c.length + 1);
+        if (M.data[c][id]) out.push(describeRecord(c, id, M.data[c][id]));
+      }
+    }
+    return out;
+  }
+  function describeRecord(c, id, d) {
+    if (c === 'scores') return `${scoreName(d)}'s score on ${fmtDate(d.meetingId)}`;
+    if (c === 'players') return d.name || 'a player';
+    if (c === 'config') return 'the handicap rules';
+    return `the meeting on ${fmtDate(id)}`;
+  }
+  // Checks a downloaded league file. Returns the league or null if damaged.
+  function checkSyncFile(obj) {
+    if (!obj || obj.format !== SYNC_FORMAT || !obj.data || typeof obj.data !== 'object') return null;
+    const asBackup = checkBackup({ format: BACKUP_FORMAT, data: obj.data });
+    if (asBackup.error || (obj.deleted && typeof obj.deleted !== 'object')) return null;
+    return { data: { ...emptyStore(), ...asBackup.data }, deleted: obj.deleted || {}, updatedBy: obj.updatedBy || '' };
+  }
+  function decodeB64utf8(b64) { const bin = atob((b64 || '').replace(/\s/g, '')); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return new TextDecoder().decode(bytes); }
+  async function fetchCloudLeague() {
+    let f;
+    try { f = await gh(SYNC_PATH); } catch (e) { if (e && e.code === 'notfound') return { league: null, sha: null }; throw e; }
+    let text = f.content ? decodeB64utf8(f.content) : await gh(SYNC_PATH, { raw: true });
+    let parsed = null; try { parsed = JSON.parse(text); } catch (e) {}
+    const league = checkSyncFile(parsed);
+    if (!league) throw { code: 'badsync', sha: f.sha };
+    return { league, sha: f.sha };
+  }
+  async function uploadCloudLeague(league, sha) {
+    const np = Object.keys(league.data.players).length, ns = Object.keys(league.data.scores).length;
+    const file = { format: SYNC_FORMAT, version: 1, appVersion: APP_VERSION, updatedAt: new Date().toISOString(), updatedBy: myRole(), data: league.data, deleted: league.deleted };
+    const res = await gh(SYNC_PATH, { method: 'PUT', body: JSON.stringify({ message: `Sync from the ${myRole()} device: ${np} players, ${ns} scores`, content: b64utf8(JSON.stringify(file)), ...(sha ? { sha } : {}) }) });
+    return res && res.content && res.content.sha;
+  }
+  const syncErrText = (e) => e && e.code === 'badsync'
+    ? 'The shared league data in the cloud is damaged, so nothing on this device was changed. To repair it, restore a backup on the Primary device (Restore from backup or Restore from the cloud).'
+    : e && e.code === 'busy' ? 'The other league device kept syncing at the same moment. Try Sync now again in a minute.'
+    : ghErrText(e).replace('The cloud backup will run', 'Sync will run');
+  function setSync(text, err) { const el = $('syncStatus'); el.textContent = text; el.className = 'status' + (err ? ' err' : ''); }
+
+  let syncBusy = false, syncAgain = false, syncFailedAt = 0, syncTimer = null, joinPending = false;
+  function scheduleSync(delay = 4000) { clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow({ auto: true }), delay); }
+  function afterLocalChange() {
+    if (ghReady() && ghGet().sync === false) ghSet({ offChanges: true }); // remembered for when sync is turned back on
+    scheduleSync(); scheduleGithubAuto();
+  }
+  // One sync round: download, merge, apply here, upload. Returns true when both copies match.
+  async function syncNow(opts = {}) {
+    if (!syncOn() || joinPending) return false;
+    const c = ghGet();
+    if (!c.joined) { if (!opts.auto) return joinCheck(); return false; }
+    if (opts.auto && (navigator.onLine === false || Date.now() - syncFailedAt < 2 * 60 * 1000)) return false;
+    if (syncBusy) { syncAgain = true; return false; }
+    syncBusy = true; renderSyncChip();
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        let remote, sha;
+        try { ({ league: remote, sha } = await fetchCloudLeague()); }
+        catch (e) {
+          // A restore may replace a damaged shared file with the restored data; nothing else may.
+          if (!(opts.repair && e && e.code === 'badsync')) throw e;
+          remote = null; sha = e.sha;
+        }
+        const local = localDb.exportSync();
+        const merged = remote ? mergeLeague(local, remote) : local;
+        const conflicts = remote ? findConflicts(local, merged, ghGet().lastSyncAt) : [];
+        const incoming = !sameLeague(merged, local);
+        if (incoming) { rulesDirty = false; localDb.applySync(merged); }
+        let newSha = sha;
+        if (!remote || !sameLeague(merged, remote)) {
+          try { newSha = await uploadCloudLeague(merged, sha); }
+          catch (e) { if (e && (e.status === 409 || e.status === 422)) continue; throw e; }
+        }
+        const now = new Date().toISOString();
+        ghSet({ lastSyncAt: nextStamp(), lastSyncWall: now, lastSyncSha: newSha, syncError: null, lastSyncFrom: incoming && remote ? remote.updatedBy : (ghGet().lastSyncFrom || '') });
+        syncFailedAt = 0;
+        if (conflicts.length) {
+          const list = conflicts.slice(0, 3).join(', ') + (conflicts.length > 3 ? ` and ${conflicts.length - 3} more` : '');
+          setGlobal(`${conflicts.length} change${conflicts.length === 1 ? '' : 's'} from the ${otherRole()} device replaced ${conflicts.length === 1 ? 'a change' : 'changes'} made here: ${list}. The newest change wins.`, true);
+        } else if (incoming && remote) setGlobal(`Updated with changes from the ${remote.updatedBy || otherRole()} device.`);
+        setSync(incoming ? `Synced. This device was updated with changes from the ${remote && remote.updatedBy || otherRole()} device.` : 'Synced. Both league devices have the same data.');
+        return true;
+      }
+      throw { code: 'busy' };
+    } catch (e) {
+      syncFailedAt = Date.now(); ghSet({ syncError: (e && e.code) || 'http' });
+      setSync(syncErrText(e), !(e && e.code === 'offline'));
+      return false;
+    } finally {
+      syncBusy = false; renderSyncChip(); renderSyncSettings(); renderBackupInfo();
+      if (syncAgain) { syncAgain = false; scheduleSync(500); }
+    }
+  }
+
+  // First sync on this device: decide how its data and the cloud's data come together.
+  let panelActions = {};
+  function showSyncPanel(text, buttons) {
+    $('syncPanelText').textContent = text;
+    $('syncPanelButtons').innerHTML = buttons.map((b, i) => `<button class="btn ${b.style || 'ghost'}" data-i="${i}">${esc(b.label)}</button>`).join('');
+    panelActions = buttons;
+    $('syncPanelButtons').querySelectorAll('button').forEach(btn => btn.onclick = () => { const b = panelActions[+btn.dataset.i]; hideSyncPanel(); b.run(); });
+    $('syncPanel').hidden = false;
+    const first = $('syncPanelButtons').querySelector('button'); first && first.focus();
+  }
+  function hideSyncPanel() { $('syncPanel').hidden = true; joinPending = false; }
+  async function joinCheck() {
+    if (!ghReady()) return false;
+    setSync('Checking the shared league data in the cloud…');
+    let remote;
+    try { remote = (await fetchCloudLeague()).league; }
+    catch (e) { setSync(syncErrText(e), !(e && e.code === 'offline')); return false; }
+    if (!ghGet().role) ghSet({ role: remote ? 'secondary' : 'primary' }); // the first device to share is the Primary
+    renderSyncSettings();
+    const local = localDb.exportSync();
+    if (!remote || !hasLeagueData(remote) || !hasLeagueData(local)) {
+      if (remote && !hasLeagueData(local)) { rulesDirty = false; localDb.applySync(remote); }
+      ghSet({ joined: true, offChanges: false });
+      return syncNow();
+    }
+    joinPending = true;
+    const np = Object.keys(remote.data.players).length, ns = Object.keys(remote.data.scores).length;
+    showSyncPanel(`The cloud already has league data (${np} players, ${ns} scores) and this device has its own (${S.players.length} players, ${S.scores.length} scores). How should they come together?`, [
+      { label: 'Use the cloud data', style: '', run: async () => {
+        if (!(await downloadBackup())) { setSync('Nothing changed, because the backup of this device’s data wasn’t saved. Try again.', true); return; }
+        rulesDirty = false; localDb.applySync(remote); ghSet({ joined: true, offChanges: false });
+        setSync('This device now has the cloud data. A backup of its old data was downloaded.'); syncNow(); } },
+      { label: 'Combine both', run: () => { ghSet({ joined: true, offChanges: false }); syncNow(); } },
+      { label: 'Cancel', run: () => { ghSet({ sync: false, syncOffAt: nextStamp() }); setSync('Sync is off. Nothing was changed.'); renderSyncSettings(); renderSyncChip(); } },
+    ]);
+    return false;
+  }
+  // Turning automatic sync on or off (off = practice mode).
+  function setSyncMode(on) {
+    const c = ghGet();
+    if (!on) {
+      if (c.sync === false) return;
+      ghSet({ sync: false, syncOffAt: nextStamp(), offChanges: false });
+      setSync('Sync is off (practice mode). Changes stay on this device until sync is turned back on.');
+      renderSyncSettings(); renderSyncChip(); renderPracticeBar(); return;
+    }
+    ghSet({ sync: true }); renderSyncSettings(); renderSyncChip(); renderPracticeBar();
+    if (!ghGet().joined) { joinCheck(); return; }
+    if (!c.offChanges) { syncNow(); return; }
+    joinPending = true;
+    showSyncPanel('Changes were made on this device while sync was off. What should happen to them?', [
+      { label: 'Replace this device’s data with the live data', style: '', run: async () => {
+        setSync('Getting the live data…');
+        try {
+          const { league } = await fetchCloudLeague();
+          if (!league) { setSync('There’s no shared league data in the cloud yet, so this device’s data was kept.', true); ghSet({ offChanges: false }); syncNow(); return; }
+          rulesDirty = false; localDb.applySync(league); ghSet({ offChanges: false });
+          setSync('This device now has the live data. The changes made while sync was off were discarded.'); syncNow();
+        } catch (e) { ghSet({ sync: false }); setSync(syncErrText(e) + ' Sync stays off.', true); renderSyncSettings(); renderSyncChip(); renderPracticeBar(); }
+      } },
+      { label: 'Keep the changes made here and share them', run: () => { ghSet({ offChanges: false }); syncNow(); } },
+      { label: 'Cancel', run: () => { ghSet({ sync: false }); setSync('Sync stays off.'); renderSyncSettings(); renderSyncChip(); renderPracticeBar(); } },
+    ]);
+    $('syncPanelText').textContent += ' “Keep” also shares anything cleared with Start over while sync was off.';
+  }
+  function renderSyncSettings() {
+    const c = ghGet(), ready = ghReady();
+    $('syncFields').hidden = !ready;
+    $('roleSecondary').checked = c.role === 'secondary'; $('rolePrimary').checked = c.role !== 'secondary';
+    $('syncOnRadio').checked = c.sync !== false; $('syncOffRadio').checked = c.sync === false;
+    $('syncNowBtn').hidden = !ready || c.sync === false;
+    $('ghBackupNow').disabled = !ready || c.sync === false;
+    $('ghBackupNow').title = c.sync === false ? 'Turned off in practice mode, so test data never reaches the cloud' : '';
+    $('syncLastText').textContent = c.sync === false ? 'off (practice mode)' : c.lastSyncWall ? `${minutesAgo(c.lastSyncWall)}${c.lastSyncFrom ? ` · latest change from the ${c.lastSyncFrom} device` : ''}` : 'not yet';
+  }
+  const minutesAgo = (iso) => { const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : agoText(iso); };
+  function renderSyncChip() {
+    const chip = $('syncChip'), c = ghGet();
+    if (!ghReady()) { chip.hidden = true; return; }
+    chip.hidden = false; chip.className = 'syncchip';
+    let text;
+    if (c.sync === false) { text = 'Sync off: practice mode'; chip.classList.add('warn'); }
+    else if (syncBusy) { text = 'Syncing…'; }
+    else if (navigator.onLine === false) { text = 'Not synced: offline'; chip.classList.add('off'); }
+    else if (c.syncError && c.syncError !== 'offline') { text = 'Sync problem'; chip.classList.add('warn'); }
+    else if (c.lastSyncWall) { text = `Synced ${minutesAgo(c.lastSyncWall)}`; chip.classList.add('ok'); }
+    else { text = 'Not synced yet'; chip.classList.add('off'); }
+    chip.textContent = text;
+  }
+  function renderPracticeBar() { $('practiceBar').hidden = !(ghReady() && ghGet().sync === false); }
+  $('syncChip').addEventListener('click', () => { location.hash = 'rules'; showTab('rules'); $('syncHeading').scrollIntoView({ block: 'start' }); });
+  $('syncNowBtn').addEventListener('click', () => { setSync('Syncing…'); syncNow(); });
+  $('syncOnRadio').addEventListener('change', () => setSyncMode(true));
+  $('syncOffRadio').addEventListener('change', () => setSyncMode(false));
+  ['rolePrimary', 'roleSecondary'].forEach(id => $(id).addEventListener('change', () => { ghSet({ role: $('roleSecondary').checked ? 'secondary' : 'primary' }); setSync(`This device is now the ${myRole()} league device.`); renderSyncSettings(); }));
+  window.addEventListener('offline', renderSyncChip);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const c = ghGet(); renderSyncChip();
+    if (!c.lastSyncWall || Date.now() - Date.parse(c.lastSyncWall) > 30 * 1000) scheduleSync(500);
+  });
+  // While the app is open: check for the other device's changes every 2 minutes, and keep "x min ago" fresh.
+  setInterval(() => { if (document.visibilityState === 'visible') syncNow({ auto: true }); }, 2 * 60 * 1000);
+  setInterval(() => { renderSyncChip(); if (!$('syncFields').hidden) renderSyncSettings(); }, 30 * 1000);
 
   // ---- Start over: new season or erase everything ----
   let clearMode = null;
   const CLEAR = {
     season: { word: 'NEW SEASON', button: 'Start new season',
-      text: () => `Start a new season? This removes all ${S.scores.length} scores from ${new Set(S.scores.map(s => s.meetingId)).size} meetings. The ${S.players.length} players and the handicap rules stay. Everyone starts with no handicap again.` },
+      text: () => { const n = S.scores.length, m = new Set(S.scores.map(s => s.meetingId)).size; return `Start a new season? This removes ${n === 1 ? 'the 1 score' : `all ${n} scores`} from ${m} meeting${m === 1 ? '' : 's'}. The ${S.players.length} players and the handicap rules stay. Everyone starts with no handicap again.${clearSyncNote()}`; } },
     erase: { word: 'ERASE', button: 'Erase everything',
-      text: () => `Erase everything? This removes all ${S.players.length} players, ${S.scores.length} scores and the handicap rules, leaving a blank app. Cloud backup settings on this device are kept.` },
+      text: () => `Erase everything? This removes all ${S.players.length} players, ${S.scores.length} scores and the handicap rules, leaving a blank app. Cloud settings on this device are kept.${clearSyncNote()}` },
   };
+  const clearSyncNote = () => syncOn() ? ' This also clears the other league device when it next syncs.' : ghReady() && ghGet().sync === false ? ' Sync is off, so this only clears this device for now.' : '';
   function openClear(mode) {
     clearMode = mode; const m = CLEAR[mode];
     $('clearText').textContent = m.text();
@@ -1065,14 +1409,15 @@ tr.delrow td { padding-top: 0; }
       $('clearYes').disabled = false; return;
     }
     let ghNote = '';
-    if (ghReady() && navigator.onLine !== false) {
+    if (syncOn() && navigator.onLine !== false) { // never upload practice-mode data
       try { await ghBackup(); ghNote = ' and to the cloud'; } catch (e) { ghNote = ` (the cloud copy failed: ${ghErrText(e)})`; }
     }
     const cur = localDb.exportAll();
     try {
       rulesDirty = false;
-      // No lastChangeAt here on purpose: the old data was just backed up, and an automatic backup of the
-      // now-empty app would become the "latest" GitHub backup.
+      // No lastChangeAt here on purpose: the old data was just backed up, and an automatic dated copy of the
+      // now-empty app would become the "latest" cloud backup. The removals are still recorded, so sync
+      // clears the other league device too.
       localDb.replaceAll(mode === 'season' ? { players: cur.players, config: cur.config, meetings: {}, scores: {} } : {});
       for (const k of Object.keys(drafts)) delete drafts[k];
       pendingDelete = null; renaming = null; importItems = null; renderImportPreview();
@@ -1167,6 +1512,12 @@ tr.delrow td { padding-top: 0; }
     checkPersistence();
     renderGithub();
     scheduleGithubAuto(3000); // catch up on anything saved while offline
+    // Devices connected before sync existed (2.x): turn sync on and share this device's data.
+    if (ghReady() && ghGet().sync !== false && !ghGet().joined) {
+      if (!ghGet().role) ghSet({ role: 'primary' });
+      if (ghGet().sync === undefined) ghSet({ sync: true });
+      setTimeout(async () => { if (await joinCheck()) setGlobal(`Sync is now on. This device is the ${myRole()} league device; change that under Rules & backup if needed.`); }, 1500);
+    } else scheduleSync(2500);
   }
   start();
 })();
